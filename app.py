@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Flask App for Chord Generation
@@ -737,22 +738,39 @@ def analyze_song():
             chord_notes = get_chord_notes(chord_type, root_note)
             note_names = [get_note_name(note) for note in chord_notes]
             
+            # Calculate how many times to play this chord based on 4/4 time
+            # In 4/4 time, each bar has 4 beats
+            # If duration is 1 beat, play 4 times; if 2 beats, play 2 times; if 4 beats, play 1 time
+            beats_per_bar = 4  # 4/4 time signature
+            chord_beats = duration
+            play_count = int(beats_per_bar / chord_beats)
+            
+            # Ensure minimum play count of 1
+            play_count = max(1, play_count)
+            
             progression_info.append({
                 "bar": bar,
                 "chord": chord_string,
                 "parsed_chord": f"{root_note} {chord_type}",
                 "notes": note_names,
                 "midi_notes": chord_notes,
-                "duration": duration
+                "duration": duration,
+                "play_count": play_count,
+                "beats": chord_beats
             })
             
-            # Play the chord
-            audio_result = generate_chord_audio(chord_notes, duration, velocity)
-            if audio_result["success"]:
-                all_notes.extend(chord_notes)
-            else:
-                # If audio fails, just collect the notes for MIDI
-                all_notes.extend(chord_notes)
+            # Play the chord multiple times based on its beat duration
+            for play in range(play_count):
+                audio_result = generate_chord_audio(chord_notes, duration, velocity)
+                if audio_result["success"]:
+                    all_notes.extend(chord_notes)
+                else:
+                    # If audio fails, just collect the notes for MIDI
+                    all_notes.extend(chord_notes)
+                
+                # Small pause between repeated plays (except after the last one)
+                if play < play_count - 1:
+                    time.sleep(0.1)
         
         # Create MIDI file for the entire progression
         total_duration = sum(chord.get("duration", 2.0) for chord in progression)
@@ -768,7 +786,7 @@ def analyze_song():
                 "description": description,
                 "method": "midi",
                 "file_path": midi_result["file_path"],
-                "message": f"Successfully analyzed and played '{song_title}'! Created MIDI file for download."
+                "message": f"Successfully analyzed and played '{song_title}' with beat-based timing! Created MIDI file for download."
             }
         else:
             result = {
@@ -851,3 +869,4 @@ def download_midi():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
