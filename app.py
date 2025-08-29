@@ -587,15 +587,24 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
         for note in scale_notes:
             # Find the note in our note mapping
             for midi_num in range(60, 72):  # C4 to B4 octave
-                if get_note_name(midi_num) == note:
+                note_name = get_note_name(midi_num)
+                # Check if the note matches (e.g., "C" matches "C4")
+                if note_name.startswith(note):
                     midi_notes.append(midi_num)
                     break
         
-        # Play each note in sequence
-        for note in midi_notes:
+        # Play each note in sequence with proper timing
+        for i, note in enumerate(midi_notes):
             fs.noteon(0, note, velocity)
-            time.sleep(duration)
+            # Use a longer duration for each note to make it audible
+            time.sleep(duration + 0.1)  # Add 0.1s to make notes more distinct
             fs.noteoff(0, note)
+            # Small pause between notes
+            if i < len(midi_notes) - 1:  # Don't pause after the last note
+                time.sleep(0.1)
+        
+        # Keep the last note playing a bit longer
+        time.sleep(0.2)
         
         fs.delete()
         return {"success": True, "method": "audio", "driver": driver}
