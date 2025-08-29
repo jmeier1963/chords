@@ -582,33 +582,58 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
         sfid = fs.sfload(sf2)
         fs.program_select(0, sfid, 0, 0)
         
-        # Convert note names to MIDI numbers
+        # Convert note names to MIDI numbers in ascending order within one octave
+        # Start from the root note (first note) and build the scale ascending
+        if not scale_notes:
+            return {"success": False, "error": "No scale notes provided", "method": "audio"}
+        
+        # Define the chromatic scale starting from C
+        chromatic_scale = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]
+        
+        # Find the root note position in the chromatic scale
+        root_note = scale_notes[0]
+        try:
+            root_index = chromatic_scale.index(root_note)
+        except ValueError:
+            # Handle enharmonic equivalents
+            enharmonic_map = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
+            if root_note in enharmonic_map:
+                root_index = chromatic_scale.index(enharmonic_map[root_note])
+            else:
+                return {"success": False, "error": f"Unknown root note: {root_note}", "method": "audio"}
+        
+        # Build the scale in ascending order within one octave
         midi_notes = []
+        base_octave = 4  # Start from C4 octave
+        base_midi = 60   # C4 = 60
+        
         for note in scale_notes:
-            # Find the note in our note mapping - search a wider range
-            note_found = False
-            for octave in range(3, 6):  # C3 to C6 (wider range)
-                for semitone in range(12):  # All 12 semitones
-                    midi_num = 60 + (octave - 4) * 12 + semitone
-                    note_name = get_note_name(midi_num)
-                    # Check if the note matches (e.g., "C" matches "C4")
-                    if note_name.startswith(note):
-                        midi_notes.append(midi_num)
-                        note_found = True
-                        break
-                if note_found:
-                    break
-            
-            # If note not found, use a default octave (C4)
-            if not note_found:
-                # Map basic notes to C4 octave
-                note_map = {"C": 60, "C#": 61, "Db": 61, "D": 62, "D#": 63, "Eb": 63, 
-                           "E": 64, "F": 65, "F#": 66, "Gb": 66, "G": 67, "G#": 68, 
-                           "Ab": 68, "A": 69, "A#": 70, "Bb": 70, "B": 71}
-                if note in note_map:
-                    midi_notes.append(note_map[note])
+            # Find the note's position relative to the root
+            try:
+                note_index = chromatic_scale.index(note)
+            except ValueError:
+                # Handle enharmonic equivalents
+                if note in enharmonic_map:
+                    note_index = chromatic_scale.index(enharmonic_map[note])
                 else:
                     print(f"Warning: Could not convert note '{note}' to MIDI")
+                    continue
+            
+            # Calculate the semitone distance from the root
+            semitone_distance = note_index - root_index
+            
+            # Ensure we stay within one octave (0-11 semitones)
+            if semitone_distance < 0:
+                semitone_distance += 12
+            
+            # Calculate the MIDI note number
+            midi_num = base_midi + semitone_distance
+            
+            # Ensure we stay within the C4 octave (60-71)
+            if midi_num > 71:
+                midi_num -= 12
+            
+            midi_notes.append(midi_num)
         
         # Play each note in sequence with proper timing
         for i, note in enumerate(midi_notes):
