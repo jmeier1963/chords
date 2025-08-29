@@ -161,6 +161,9 @@ def generate_chord():
         chord_notes = get_chord_notes(chord_type, root_note)
         note_names = [get_note_name(note) for note in chord_notes]
         
+        # Analyze scales for this chord
+        scale_analysis = analyze_scales_for_chord(root_note, chord_type)
+        
         # Try to generate audio first
         audio_result = generate_chord_audio(chord_notes, duration, velocity)
         
@@ -174,6 +177,7 @@ def generate_chord():
                 "root_note": root_note,
                 "method": "audio",
                 "driver": audio_result.get("driver", "unknown"),
+                "scales": scale_analysis.get("data", {}).get("scales", []),
                 "message": f"Successfully played {root_note} {chord_type} chord: {', '.join(note_names)}"
             }
         else:
@@ -189,6 +193,7 @@ def generate_chord():
                     "root_note": root_note,
                     "method": "midi",
                     "file_path": midi_result["file_path"],
+                    "scales": scale_analysis.get("data", {}).get("scales", []),
                     "message": f"Audio failed, created MIDI file for {root_note} {chord_type} chord: {', '.join(note_names)}"
                 }
             else:
@@ -199,6 +204,7 @@ def generate_chord():
                     "note_names": note_names,
                     "chord_type": chord_type,
                     "root_note": root_note,
+                    "scales": scale_analysis.get("data", {}).get("scales", []),
                     "error": f"Audio: {audio_result.get('error', 'Unknown')}, MIDI: {midi_result.get('error', 'Unknown')}",
                     "message": f"Failed to generate audio or MIDI for {root_note} {chord_type} chord"
                 }
@@ -430,6 +436,174 @@ def parse_chord_string(chord_string):
     
     return root_note, chord_type
 
+def analyze_scales_for_chord(root_note, chord_type):
+    """Use OpenAI to determine which scales can be played over a given chord"""
+    try:
+        prompt = f"""
+        Given a {root_note} {chord_type} chord, what scales would be suitable for improvisation over this chord?
+        
+        Provide the answer in this JSON format:
+        {{
+            "scales": [
+                {{
+                    "name": "C Major Pentatonic",
+                    "notes": ["C", "D", "E", "G", "A"],
+                    "description": "Bright, happy sound that works well over major chords"
+                }},
+                {{
+                    "name": "C Mixolydian",
+                    "notes": ["C", "D", "E", "F", "G", "A", "Bb"],
+                    "description": "Major scale with flat 7th, great for dominant 7th chords"
+                }}
+            ]
+        }}
+        
+        Focus on common scales used in jazz, blues, rock, and pop music.
+        Include pentatonic scales, modes, and other scales that work well over this chord type.
+        Return only valid JSON, no additional text.
+        """
+        
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a music theory expert specializing in scale selection for chord improvisation."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=800,
+            temperature=0.3
+        )
+        
+        # Extract the response content
+        content = response.choices[0].message.content.strip()
+        
+        # Try to parse the JSON response
+        try:
+            # Remove any markdown formatting if present
+            if content.startswith("```json"):
+                content = content.split("```json")[1]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            scale_data = json.loads(content.strip())
+            return {"success": True, "data": scale_data}
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing failed for scales: {e}")
+            print(f"Raw response: {content}")
+            
+            # Fallback: provide common scales based on chord type
+            return get_fallback_scales(root_note, chord_type)
+            
+    except Exception as e:
+        print(f"OpenAI API error for scales: {e}")
+        return get_fallback_scales(root_note, chord_type)
+
+def get_fallback_scales(root_note, chord_type):
+    """Provide fallback scales when OpenAI fails"""
+    if chord_type == "major":
+        return {
+            "success": True,
+            "data": {
+                "scales": [
+                    {
+                        "name": f"{root_note} Major Pentatonic",
+                        "notes": [root_note, get_note_at_interval(root_note, 2), get_note_at_interval(root_note, 4), 
+                                 get_note_at_interval(root_note, 7), get_note_at_interval(root_note, 9)],
+                        "description": "Bright, happy sound that works well over major chords"
+                    },
+                    {
+                        "name": f"{root_note} Major (Ionian)",
+                        "notes": [root_note, get_note_at_interval(root_note, 2), get_note_at_interval(root_note, 4),
+                                 get_note_at_interval(root_note, 5), get_note_at_interval(root_note, 7),
+                                 get_note_at_interval(root_note, 9), get_note_at_interval(root_note, 11)],
+                        "description": "The major scale - safe choice for major chords"
+                    }
+                ]
+            }
+        }
+    elif chord_type == "minor":
+        return {
+            "success": True,
+            "data": {
+                "scales": [
+                    {
+                        "name": f"{root_note} Minor Pentatonic",
+                        "notes": [root_note, get_note_at_interval(root_note, 3), get_note_at_interval(root_note, 5),
+                                 get_note_at_interval(root_note, 7), get_note_at_interval(root_note, 10)],
+                        "description": "Dark, bluesy sound perfect for minor chords"
+                    },
+                    {
+                        "name": f"{root_note} Natural Minor (Aeolian)",
+                        "notes": [root_note, get_note_at_interval(root_note, 2), get_note_at_interval(root_note, 3),
+                                 get_note_at_interval(root_note, 5), get_note_at_interval(root_note, 7),
+                                 get_note_at_interval(root_note, 8), get_note_at_interval(root_note, 10)],
+                        "description": "The natural minor scale - great for minor chords"
+                    }
+                ]
+            }
+        }
+    else:
+        return {
+            "success": True,
+            "data": {
+                "scales": [
+                    {
+                        "name": f"{root_note} Major Pentatonic",
+                        "notes": [root_note, get_note_at_interval(root_note, 2), get_note_at_interval(root_note, 4),
+                                 get_note_at_interval(root_note, 7), get_note_at_interval(root_note, 9)],
+                        "description": "Versatile scale that works over many chord types"
+                    }
+                ]
+            }
+        }
+
+def get_note_at_interval(root_note, semitones):
+    """Get note at a given interval from root note"""
+    notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    root_index = notes.index(root_note)
+    note_index = (root_index + semitones) % 12
+    return notes[note_index]
+
+def play_scale_notes(scale_notes, duration=0.5, velocity=80):
+    """Play scale notes one by one"""
+    try:
+        import fluidsynth
+        
+        # Get best driver for platform
+        driver = get_driver()
+        
+        # Initialize FluidSynth
+        sf2 = "./piano.sf2"
+        fs = fluidsynth.Synth()
+        fs.start(driver=driver)
+        
+        # Load SoundFont
+        sfid = fs.sfload(sf2)
+        fs.program_select(0, sfid, 0, 0)
+        
+        # Convert note names to MIDI numbers
+        midi_notes = []
+        for note in scale_notes:
+            # Find the note in our note mapping
+            for midi_num in range(60, 72):  # C4 to B4 octave
+                if get_note_name(midi_num) == note:
+                    midi_notes.append(midi_num)
+                    break
+        
+        # Play each note in sequence
+        for note in midi_notes:
+            fs.noteon(0, note, velocity)
+            time.sleep(duration)
+            fs.noteoff(0, note)
+        
+        fs.delete()
+        return {"success": True, "method": "audio", "driver": driver}
+        
+    except Exception as e:
+        print(f"Scale playback failed: {e}")
+        return {"success": False, "error": str(e), "method": "audio"}
+
 @app.route('/analyze_song', methods=['POST'])
 def analyze_song():
     """Analyze a song title and generate chord progression using OpenAI"""
@@ -529,6 +703,50 @@ def analyze_song():
             "success": False,
             "error": str(e),
             "message": "An error occurred while analyzing the song"
+        })
+
+@app.route('/play_scale', methods=['POST'])
+def play_scale():
+    """Play a specific scale note by note"""
+    try:
+        data = request.get_json()
+        scale_notes = data.get('scale_notes', [])
+        duration = float(data.get('duration', 0.5))
+        velocity = int(data.get('velocity', 80))
+        
+        if not scale_notes:
+            return jsonify({
+                "success": False,
+                "error": "No scale notes provided",
+                "message": "Please provide scale notes to play"
+            })
+        
+        # Play the scale
+        audio_result = play_scale_notes(scale_notes, duration, velocity)
+        
+        if audio_result["success"]:
+            result = {
+                "success": True,
+                "scale_notes": scale_notes,
+                "method": "audio",
+                "driver": audio_result.get("driver", "unknown"),
+                "message": f"Successfully played scale: {', '.join(scale_notes)}"
+            }
+        else:
+            result = {
+                "success": False,
+                "scale_notes": scale_notes,
+                "error": audio_result.get("error", "Unknown"),
+                "message": f"Failed to play scale: {', '.join(scale_notes)}"
+            }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while playing the scale"
         })
 
 @app.route('/download_midi')

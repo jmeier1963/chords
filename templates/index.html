@@ -266,7 +266,7 @@
                 </div>
 
                 <button type="submit" class="btn" id="generateBtn">
-                    🎵 Generate & Play Chord
+                    🎵 Play Chord
                 </button>
                 
                 <div style="margin-top: 20px; text-align: center;">
@@ -478,6 +478,30 @@
                     <h4>Notes in this chord:</h4>
                     ${result.note_names.map(note => `<span class="note">${note}</span>`).join('')}
                 `;
+                
+                // Display scales if available
+                if (result.scales && result.scales.length > 0) {
+                    const scalesHtml = `
+                        <div style="margin-top: 20px;">
+                            <h4>🎵 Scales for Improvisation:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 15px 0;">
+                                ${result.scales.map((scale, index) => `
+                                    <div style="background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #9b59b6;">
+                                        <h5 style="color: #9b59b6; margin-bottom: 8px;">${scale.name}</h5>
+                                        <p style="color: #666; font-size: 14px; margin-bottom: 10px;">${scale.description}</p>
+                                        <div style="margin-bottom: 10px;">
+                                            <strong>Notes:</strong> ${scale.notes.map(note => `<span class="note" style="font-size: 12px; padding: 5px 8px;">${note}</span>`).join(' ')}
+                                        </div>
+                                        <button class="btn" onclick="playScale(${JSON.stringify(scale.notes).replace(/"/g, '&quot;')})" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); padding: 8px 15px; font-size: 14px;">
+                                            🎹 Play Scale
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    notesDisplay.innerHTML += scalesHtml;
+                }
 
                 // Show download button for MIDI files
                 if (result.method === 'midi') {
@@ -690,6 +714,31 @@
 
                 // Display error message
                 messageArea.innerHTML = `<div class="error-message">${result.message}</div>`;
+            }
+        }
+        
+        async function playScale(scaleNotes) {
+            try {
+                const response = await fetch('/play_scale', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        scale_notes: scaleNotes,
+                        duration: 0.5,
+                        velocity: 80
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`Playing scale: ${scaleNotes.join(', ')}`);
+                } else {
+                    console.error(`Failed to play scale: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Error playing scale:', error);
             }
         }
     </script>
