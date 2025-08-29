@@ -566,7 +566,17 @@ def get_note_at_interval(root_note, semitones):
     return notes[note_index]
 
 def play_scale_notes(scale_notes, duration=0.5, velocity=80):
-    """Play scale notes one by one"""
+    """
+    Play scale notes one by one in ascending order with proper octave progression.
+    
+    Args:
+        scale_notes (list): List of note names (e.g., ["C", "D", "E", "F", "G", "A", "B"])
+        duration (float): Duration for each note in seconds (default: 0.5)
+        velocity (int): MIDI velocity for note playback (default: 80)
+    
+    Returns:
+        dict: Success status and method used for playback
+    """
     try:
         import fluidsynth
         
@@ -587,75 +597,78 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
         if not scale_notes:
             return {"success": False, "error": "No scale notes provided", "method": "audio"}
         
-        # Define the chromatic scale starting from C
-        chromatic_scale = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]
+        # Static mapping of notes to MIDI numbers across three octaves (C3 to C6)
+        # This ensures consistent mapping and eliminates calculation errors
+        note_to_midi = {
+            # Octave 3 (C3 = 48) - Lower range for some scales
+            "C3": 48, "C#3": 49, "D3": 50, "D#3": 51, "E3": 52, "F3": 53, "F#3": 54, "G3": 55, "G#3": 56, "A3": 57, "A#3": 58, "B3": 59,
+            # Octave 4 (C4 = 60) - Standard starting octave for most scales
+            "C4": 60, "C#4": 61, "D4": 62, "D#4": 63, "E4": 64, "F4": 65, "F#4": 66, "G4": 67, "G#4": 68, "A4": 69, "A#4": 70, "B4": 71,
+            # Octave 5 (C5 = 72) - Upper range for scale progression
+            "C5": 72, "C#5": 73, "D5": 74, "D#5": 75, "E5": 76, "F5": 77, "F#5": 78, "G5": 79, "G#5": 80, "A5": 81, "A#5": 82, "B5": 83,
+            # Octave 6 (C6 = 84) - Final octave for completing scales
+            "C6": 84, "C#6": 85, "D6": 86, "D#6": 87, "E6": 88, "F6": 89, "F#6": 90, "G6": 91, "G#6": 92, "A6": 93, "A#6": 94, "B6": 95
+        }
         
-        # Find the root note position in the chromatic scale
+        # Handle enharmonic equivalents
+        enharmonic_map = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
+        
+        # Find the root note and determine starting octave
         root_note = scale_notes[0]
-        try:
-            root_index = chromatic_scale.index(root_note)
-        except ValueError:
-            # Handle enharmonic equivalents
-            enharmonic_map = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
-            if root_note in enharmonic_map:
-                root_index = chromatic_scale.index(enharmonic_map[root_note])
-            else:
-                return {"success": False, "error": f"Unknown root note: {root_note}", "method": "audio"}
+        root_note_clean = enharmonic_map.get(root_note, root_note)
         
-        # Build the scale in ascending order, ensuring each note is unique
+        # Build the scale by mapping each note to the appropriate octave
         midi_notes = []
-        base_midi = 60   # C4 = 60
+        current_octave = 4  # Start with octave 4
         
-        # First, let's calculate all semitone distances and sort them
-        scale_with_distances = []
         for note in scale_notes:
-            try:
-                note_index = chromatic_scale.index(note)
-            except ValueError:
-                # Handle enharmonic equivalents
-                if note in enharmonic_map:
-                    note_index = chromatic_scale.index(enharmonic_map[note])
+            # Clean the note name (handle enharmonic equivalents)
+            clean_note = enharmonic_map.get(note, note)
+            
+            # Try to find the note in the current octave
+            note_key = f"{clean_note}{current_octave}"
+            
+            if note_key in note_to_midi:
+                midi_notes.append(note_to_midi[note_key])
+            else:
+                # If note not found, try the next octave
+                current_octave += 1
+                note_key = f"{clean_note}{current_octave}"
+                if note_key in note_to_midi:
+                    midi_notes.append(note_to_midi[note_key])
                 else:
                     print(f"Warning: Could not convert note '{note}' to MIDI")
                     continue
-            
-            # Calculate the semitone distance from the root
-            semitone_distance = note_index - root_index
-            
-            # Handle wrapping around the chromatic scale
-            # If a note comes before the root in the chromatic scale, it should be higher
-            if semitone_distance < 0:
-                semitone_distance += 12
-            
-            scale_with_distances.append((note, semitone_distance))
         
-        # Sort by semitone distance to ensure ascending order
-        scale_with_distances.sort(key=lambda x: x[1])
+        # Sort the MIDI notes to ensure ascending order
+        midi_notes.sort()
         
-        # Now build the MIDI notes, ensuring each is unique and ascending
-        # We need to handle octave transitions properly
-        for i, (note, semitone_distance) in enumerate(scale_with_distances):
-            if i == 0:
-                # First note starts at base_midi
-                midi_num = base_midi
-            else:
-                # For subsequent notes, calculate the actual semitone distance from the previous note
-                prev_semitone = scale_with_distances[i-1][1]
-                actual_distance = semitone_distance - prev_semitone
-                
-                # If the distance is 0 or negative, we need to go up an octave
-                if actual_distance <= 0:
-                    actual_distance += 12
-                
-                # Calculate MIDI note relative to the previous note
-                midi_num = midi_notes[-1] + actual_distance
-            
-            midi_notes.append(midi_num)
+        # Add the root note (ground tone) as the last note, one octave up
+        # Find the appropriate octave for the final root note
+        final_root_octave = 4  # Start with octave 4
+        final_root_key = f"{root_note_clean}{final_root_octave}"
         
-        # Debug: Print the actual MIDI notes being generated
-        print(f"Scale notes: {scale_notes}")
-        print(f"Generated MIDI notes: {midi_notes}")
-        print(f"Note names: {[get_note_name(note) for note in midi_notes]}")
+        # Find an octave that's higher than the highest note we have
+        if midi_notes:
+            highest_so_far = max(midi_notes)
+            while note_to_midi.get(final_root_key, 0) <= highest_so_far:
+                final_root_octave += 1
+                final_root_key = f"{root_note_clean}{final_root_octave}"
+        
+        # Add the final root note
+        if final_root_key in note_to_midi:
+            midi_notes.append(note_to_midi[final_root_key])
+        else:
+            # Fallback: just add 12 semitones to the highest note
+            midi_notes.append(highest_so_far + 12)
+        
+        # Also add the root note to the scale notes for display purposes
+        scale_notes.append(scale_notes[0])  # Add the root note again at the end
+        
+        # Debug: Print the actual MIDI notes being generated (optional)
+        # print(f"Scale notes: {scale_notes}")
+        # print(f"Generated MIDI notes: {midi_notes}")
+        # print(f"Note names: {[get_note_name(note) for note in midi_notes]}")
         
         # Play each note in sequence with proper timing
         for i, note in enumerate(midi_notes):
