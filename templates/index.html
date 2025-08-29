@@ -488,6 +488,15 @@
                 document.getElementById('bluesBtn').disabled = false;
             }
         });
+        
+        // Event delegation for scale buttons (since they're dynamically created)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('play-scale-btn')) {
+                const scaleNotes = JSON.parse(e.target.dataset.scaleNotes);
+                console.log('Scale button clicked, notes:', scaleNotes);
+                playScale(scaleNotes);
+            }
+        });
 
         function displayResult(result) {
             const resultSection = document.getElementById('resultSection');
@@ -547,7 +556,7 @@
                                         <div style="margin-bottom: 10px;">
                                             <strong>Notes:</strong> ${scale.notes.map(note => `<span class="note" style="font-size: 12px; padding: 5px 8px;">${note}</span>`).join(' ')}
                                         </div>
-                                        <button class="btn" onclick="playScale(${JSON.stringify(scale.notes).replace(/"/g, '&quot;')})" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); padding: 8px 15px; font-size: 14px;">
+                                        <button class="btn play-scale-btn" data-scale-notes='${JSON.stringify(scale.notes)}' style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); padding: 8px 15px; font-size: 14px;">
                                             🎹 Play Scale
                                         </button>
                                     </div>
@@ -772,7 +781,11 @@
             }
         }
         
+        }); // Close DOMContentLoaded event listener
+        
+        // Global function for playing scales (must be outside DOMContentLoaded to be accessible from onclick)
         async function playScale(scaleNotes) {
+            console.log('playScale called with:', scaleNotes); // Debug log
             try {
                 const response = await fetch('/play_scale', {
                     method: 'POST',
@@ -796,8 +809,6 @@
                 console.error('Error playing scale:', error);
             }
         }
-        
-        }); // Close DOMContentLoaded event listener
     </script>
 </body>
 </html>
