@@ -11,8 +11,16 @@ import time
 import tempfile
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+import openai
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
+
+# Configure OpenAI
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # MIDI note to note name mapping
 NOTE_NAMES = {
@@ -296,6 +304,231 @@ def get_5th_note(root_note):
     root_index = notes.index(root_note)
     fifth_index = (root_index + 7) % 12  # Perfect 5th is 7 semitones up
     return notes[fifth_index]
+
+def analyze_song_with_openai(song_title):
+    """Use OpenAI GPT-4o-mini to analyze a song and extract chord progression"""
+    try:
+        prompt = f"""
+        Analyze the song "{song_title}" and provide the chord progression in the following JSON format:
+        {{
+            "key": "C",
+            "progression": [
+                {{
+                    "chord": "C major",
+                    "duration": 2,
+                    "bar": 1
+                }},
+                {{
+                    "chord": "F major", 
+                    "duration": 2,
+                    "bar": 2
+                }}
+            ],
+            "total_bars": 4,
+            "description": "Brief description of the progression"
+        }}
+        
+        If you don't know the exact song, provide a common chord progression that would fit a song with that title or style.
+        Focus on popular songs and common chord patterns.
+        Return only valid JSON, no additional text.
+        """
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a music theory expert. Analyze songs and provide chord progressions in JSON format."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        # Extract the response content
+        content = response.choices[0].message.content.strip()
+        
+        # Try to parse the JSON response
+        try:
+            # Remove any markdown formatting if present
+            if content.startswith("```json"):
+                content = content.split("```json")[1]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            progression_data = json.loads(content.strip())
+            return {"success": True, "data": progression_data}
+            
+        except json.JSONDecodeError as e:
+            # If JSON parsing fails, try to extract key information manually
+            print(f"JSON parsing failed: {e}")
+            print(f"Raw response: {content}")
+            
+            # Fallback: create a simple progression based on common patterns
+            return {
+                "success": True,
+                "data": {
+                    "key": "C",
+                    "progression": [
+                        {"chord": "C major", "duration": 2, "bar": 1},
+                        {"chord": "F major", "duration": 2, "bar": 2},
+                        {"chord": "G major", "duration": 2, "bar": 3},
+                        {"chord": "C major", "duration": 2, "bar": 4}
+                    ],
+                    "total_bars": 4,
+                    "description": f"Common progression for '{song_title}' (fallback pattern)"
+                }
+            }
+            
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return {"success": False, "error": str(e)}
+
+def parse_chord_string(chord_string):
+    """Parse a chord string like 'C major' or 'Fm' into root note and chord type"""
+    chord_string = chord_string.strip().lower()
+    
+    # Common chord abbreviations
+    chord_mappings = {
+        "major": "major",
+        "maj": "major", 
+        "m": "minor",
+        "minor": "minor",
+        "min": "minor",
+        "dim": "diminished",
+        "diminished": "diminished",
+        "aug": "augmented",
+        "augmented": "augmented",
+        "7": "dominant7",
+        "dom7": "dominant7",
+        "dominant7": "dominant7",
+        "maj7": "major7",
+        "major7": "major7",
+        "min7": "minor7",
+        "minor7": "minor7",
+        "dim7": "diminished7",
+        "diminished7": "diminished7",
+        "5": "power",
+        "power": "power"
+    }
+    
+    # Extract root note (first character, handle sharps/flats)
+    root_note = chord_string[0].upper()
+    if len(chord_string) > 1 and chord_string[1] in ['#', 'b']:
+        if chord_string[1] == 'b':
+            # Convert flat to sharp equivalent
+            flat_to_sharp = {"Bb": "A#", "Eb": "D#", "Ab": "G#", "Db": "C#", "Gb": "F#"}
+            root_note = flat_to_sharp.get(root_note + "b", root_note + "b")
+        else:
+            root_note += chord_string[1]
+    
+    # Extract chord type from the rest
+    chord_type = "major"  # default
+    for key, value in chord_mappings.items():
+        if key in chord_string:
+            chord_type = value
+            break
+    
+    return root_note, chord_type
+
+@app.route('/analyze_song', methods=['POST'])
+def analyze_song():
+    """Analyze a song title and generate chord progression using OpenAI"""
+    try:
+        data = request.get_json()
+        song_title = data.get('song_title', '').strip()
+        
+        if not song_title:
+            return jsonify({
+                "success": False,
+                "error": "No song title provided",
+                "message": "Please provide a song title to analyze"
+            })
+        
+        # Analyze song with OpenAI
+        analysis_result = analyze_song_with_openai(song_title)
+        
+        if not analysis_result["success"]:
+            return jsonify({
+                "success": False,
+                "error": analysis_result.get("error", "Unknown error"),
+                "message": f"Failed to analyze song '{song_title}'"
+            })
+        
+        progression_data = analysis_result["data"]
+        key = progression_data.get("key", "C")
+        progression = progression_data.get("progression", [])
+        total_bars = progression_data.get("total_bars", len(progression))
+        description = progression_data.get("description", "")
+        
+        # Process each chord in the progression
+        progression_info = []
+        all_notes = []
+        velocity = 96
+        
+        for chord_data in progression:
+            chord_string = chord_data.get("chord", "C major")
+            duration = float(chord_data.get("duration", 2.0))
+            bar = chord_data.get("bar", len(progression_info) + 1)
+            
+            # Parse chord string
+            root_note, chord_type = parse_chord_string(chord_string)
+            
+            # Get chord notes
+            chord_notes = get_chord_notes(chord_type, root_note)
+            note_names = [get_note_name(note) for note in chord_notes]
+            
+            progression_info.append({
+                "bar": bar,
+                "chord": chord_string,
+                "parsed_chord": f"{root_note} {chord_type}",
+                "notes": note_names,
+                "midi_notes": chord_notes,
+                "duration": duration
+            })
+            
+            # Play the chord
+            audio_result = generate_chord_audio(chord_notes, duration, velocity)
+            if audio_result["success"]:
+                all_notes.extend(chord_notes)
+            else:
+                # If audio fails, just collect the notes for MIDI
+                all_notes.extend(chord_notes)
+        
+        # Create MIDI file for the entire progression
+        total_duration = sum(chord.get("duration", 2.0) for chord in progression)
+        midi_result = create_midi_file(all_notes, total_duration, velocity)
+        
+        if midi_result["success"]:
+            result = {
+                "success": True,
+                "song_title": song_title,
+                "key": key,
+                "progression": progression_info,
+                "total_bars": total_bars,
+                "description": description,
+                "method": "midi",
+                "file_path": midi_result["file_path"],
+                "message": f"Successfully analyzed and played '{song_title}'! Created MIDI file for download."
+            }
+        else:
+            result = {
+                "success": False,
+                "song_title": song_title,
+                "key": key,
+                "progression": progression_info,
+                "total_bars": total_bars,
+                "description": description,
+                "error": midi_result.get("error", "Unknown"),
+                "message": f"Failed to create MIDI file for '{song_title}'"
+            }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while analyzing the song"
+        })
 
 @app.route('/download_midi')
 def download_midi():

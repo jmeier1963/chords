@@ -274,6 +274,17 @@
                         🎸 Play 12-Bar Blues Progression
                     </button>
                 </div>
+                
+                <div style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px; border: 2px dashed #667eea;">
+                    <h3 style="text-align: center; color: #667eea; margin-bottom: 15px;">🎵 AI Song Analysis</h3>
+                    <div class="form-group">
+                        <label for="songTitle">Song Title:</label>
+                        <input type="text" id="songTitle" name="songTitle" placeholder="Enter a song title (e.g., 'Wonderwall', 'Hotel California')" required>
+                    </div>
+                    <button type="button" class="btn" id="analyzeSongBtn" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);">
+                        🤖 Analyze Song & Play Chords
+                    </button>
+                </div>
             </form>
 
             <div class="loading" id="loading">
@@ -377,6 +388,49 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('bluesBtn').disabled = false;
                 document.getElementById('generateBtn').disabled = false;
+            }
+        });
+
+        // Song Analysis button functionality
+        document.getElementById('analyzeSongBtn').addEventListener('click', async function() {
+            const songTitle = document.getElementById('songTitle').value.trim();
+            
+            if (!songTitle) {
+                alert('Please enter a song title');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('analyzeSongBtn').disabled = true;
+            document.getElementById('generateBtn').disabled = true;
+            document.getElementById('bluesBtn').disabled = true;
+
+            try {
+                const response = await fetch('/analyze_song', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        song_title: songTitle
+                    })
+                });
+
+                const result = await response.json();
+                displaySongResult(result);
+            } catch (error) {
+                displaySongResult({
+                    success: false,
+                    error: error.message,
+                    message: 'Failed to connect to server'
+                });
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeSongBtn').disabled = false;
+                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('bluesBtn').disabled = false;
             }
         });
 
@@ -534,6 +588,96 @@
                     <div class="info-item">
                         <h4>Progression</h4>
                         <p>12-Bar Blues</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Status</h4>
+                        <p>Failed</p>
+                    </div>
+                `;
+
+                notesDisplay.innerHTML = '';
+                downloadBtn.style.display = 'none';
+
+                // Display error message
+                messageArea.innerHTML = `<div class="error-message">${result.message}</div>`;
+            }
+        }
+
+        function displaySongResult(result) {
+            const resultSection = document.getElementById('resultSection');
+            const resultCard = document.getElementById('resultCard');
+            const resultTitle = document.getElementById('resultTitle');
+            const chordInfo = document.getElementById('chordInfo');
+            const notesDisplay = document.getElementById('notesDisplay');
+            const messageArea = document.getElementById('messageArea');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            // Show result section
+            resultSection.style.display = 'block';
+
+            // Set card style
+            resultCard.className = 'result-card ' + (result.success ? 'result-success' : 'result-error');
+
+            // Set title
+            resultTitle.textContent = result.success ? `Song Analysis: ${result.song_title}` : 'Song Analysis Failed';
+
+            if (result.success) {
+                // Display song information
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Song Title</h4>
+                        <p>${result.song_title}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Key</h4>
+                        <p>${result.key}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Total Bars</h4>
+                        <p>${result.total_bars}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Method</h4>
+                        <p>${result.method}</p>
+                    </div>
+                `;
+
+                // Display progression details
+                let progressionHtml = `<h4>Chord Progression for "${result.song_title}":</h4>`;
+                if (result.description) {
+                    progressionHtml += `<p style="text-align: center; color: #666; margin: 10px 0; font-style: italic;">${result.description}</p>`;
+                }
+                progressionHtml += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0;">';
+                
+                result.progression.forEach((bar, index) => {
+                    progressionHtml += `
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <strong>Bar ${bar.bar}</strong><br>
+                            <span style="color: #667eea; font-weight: 600;">${bar.chord}</span><br>
+                            <small style="color: #666;">${bar.notes.join(', ')}</small><br>
+                            <small style="color: #999;">${bar.duration}s</small>
+                        </div>
+                    `;
+                });
+                
+                progressionHtml += '</div>';
+                notesDisplay.innerHTML = progressionHtml;
+
+                // Show download button for MIDI files
+                if (result.method === 'midi') {
+                    downloadBtn.style.display = 'block';
+                    downloadBtn.onclick = () => window.location.href = '/download_midi';
+                } else {
+                    downloadBtn.style.display = 'none';
+                }
+
+                // Display success message
+                messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
+            } else {
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Song Title</h4>
+                        <p>${result.song_title || 'N/A'}</p>
                     </div>
                     <div class="info-item">
                         <h4>Status</h4>
