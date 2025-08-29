@@ -313,95 +313,99 @@
     </div>
 
     <script>
-        // Debug: Check if elements exist
-        console.log('DOM loaded, checking elements...');
-        console.log('Form element:', document.getElementById('chordForm'));
-        console.log('Generate button:', document.getElementById('generateBtn'));
-        
-        document.getElementById('chordForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            console.log('Form submitted!'); // Debug log
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded, setting up event listeners...');
             
-            const formData = new FormData(this);
-            const data = {
-                root_note: formData.get('rootNote'),
-                chord_type: formData.get('chordType'),
-                duration: parseFloat(formData.get('duration')),
-                velocity: parseInt(formData.get('velocity'))
-            };
+            // Debug: Check if elements exist
+            console.log('Form element:', document.getElementById('chordForm'));
+            console.log('Generate button:', document.getElementById('generateBtn'));
             
-            console.log('Form data:', data); // Debug log
+            // Form submit handler
+            document.getElementById('chordForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                console.log('Form submitted!'); // Debug log
+                
+                const formData = new FormData(this);
+                const data = {
+                    root_note: formData.get('rootNote'),
+                    chord_type: formData.get('chordType'),
+                    duration: parseFloat(formData.get('duration')),
+                    velocity: parseInt(formData.get('velocity'))
+                };
+                
+                console.log('Form data:', data); // Debug log
 
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('resultSection').style.display = 'none';
-            document.getElementById('generateBtn').disabled = true;
+                // Show loading
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('resultSection').style.display = 'none';
+                document.getElementById('generateBtn').disabled = true;
 
-            try {
-                const response = await fetch('/generate_chord', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
+                try {
+                    const response = await fetch('/generate_chord', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
 
-                const result = await response.json();
-                displayResult(result);
-            } catch (error) {
-                displayResult({
-                    success: false,
-                    error: error.message,
-                    message: 'Failed to connect to server'
-                });
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('generateBtn').disabled = false;
-            }
-        });
-        
-        // Backup click handler for the generate button
-        document.getElementById('generateBtn').addEventListener('click', async function(e) {
-            console.log('Generate button clicked!'); // Debug log
-            e.preventDefault();
+                    const result = await response.json();
+                    displayResult(result);
+                } catch (error) {
+                    displayResult({
+                        success: false,
+                        error: error.message,
+                        message: 'Failed to connect to server'
+                    });
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('generateBtn').disabled = false;
+                }
+            });
             
-            const formData = new FormData(document.getElementById('chordForm'));
-            const data = {
-                root_note: formData.get('rootNote'),
-                chord_type: formData.get('chordType'),
-                duration: parseFloat(formData.get('duration')),
-                velocity: parseInt(formData.get('velocity'))
-            };
-            
-            console.log('Button click data:', data); // Debug log
+            // Backup click handler for the generate button
+            document.getElementById('generateBtn').addEventListener('click', async function(e) {
+                console.log('Generate button clicked!'); // Debug log
+                e.preventDefault();
+                
+                const formData = new FormData(document.getElementById('chordForm'));
+                const data = {
+                    root_note: formData.get('rootNote'),
+                    chord_type: formData.get('chordType'),
+                    duration: parseFloat(formData.get('duration')),
+                    velocity: parseInt(formData.get('velocity'))
+                };
+                
+                console.log('Button click data:', data); // Debug log
 
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('resultSection').style.display = 'none';
-            document.getElementById('generateBtn').disabled = true;
+                // Show loading
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('resultSection').style.display = 'none';
+                document.getElementById('generateBtn').disabled = true;
 
-            try {
-                const response = await fetch('/generate_chord', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
+                try {
+                    const response = await fetch('/generate_chord', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
 
-                const result = await response.json();
-                displayResult(result);
-            } catch (error) {
-                displayResult({
-                    success: false,
-                    error: error.message,
-                    message: 'Failed to connect to server'
-                });
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('generateBtn').disabled = false;
-            }
-        });
+                    const result = await response.json();
+                    displayResult(result);
+                } catch (error) {
+                    displayResult({
+                        success: false,
+                        error: error.message,
+                        message: 'Failed to connect to server'
+                    });
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('generateBtn').disabled = false;
+                }
+            });
 
         // 12-Bar Blues button functionality
         document.getElementById('bluesBtn').addEventListener('click', async function() {
@@ -792,6 +796,8 @@
                 console.error('Error playing scale:', error);
             }
         }
+        
+        }); // Close DOMContentLoaded event listener
     </script>
 </body>
 </html>
