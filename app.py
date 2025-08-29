@@ -333,7 +333,8 @@ def analyze_song_with_openai(song_title):
         Return only valid JSON, no additional text.
         """
         
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a music theory expert. Analyze songs and provide chord progressions in JSON format."},
