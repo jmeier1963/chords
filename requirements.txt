@@ -12,3 +12,6 @@ numpy>=1.20.0
 
 # Additional useful packages
 ipykernel>=6.0.0
+
+# Web framework
+flask>=2.0.0
