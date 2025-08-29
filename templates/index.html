@@ -527,26 +527,18 @@
             // Set title
             resultTitle.textContent = result.success ? '' : 'Generation Failed';
 
-            // Display chord information
-            if (result.success) {
-                chordInfo.innerHTML = `
-                    <div class="info-item">
-                        <h4>Root Note</h4>
-                        <p>${result.root_note}</p>
-                    </div>
-                    <div class="info-item">
-                        <h4>Chord Type</h4>
-                        <p>${result.chord_type}</p>
-                    </div>
-                    <div class="info-item">
-                        <h4>Method</h4>
-                        <p>${result.method}</p>
-                    </div>
-                    <div class="info-item">
-                        <h4>MIDI Notes</h4>
-                        <p>${result.chord_notes.join(', ')}</p>
-                    </div>
-                `;
+                            // Display chord information
+                if (result.success) {
+                    chordInfo.innerHTML = `
+                        <div class="info-item">
+                            <h4>Root Note</h4>
+                            <p>${result.root_note}</p>
+                        </div>
+                        <div class="info-item">
+                            <h4>Chord Type</h4>
+                            <p>${result.chord_type}</p>
+                        </div>
+                    `;
 
                 // Display notes
                 notesDisplay.innerHTML = `
