@@ -204,6 +204,99 @@ def generate_chord():
             "message": "An error occurred while processing the request"
         })
 
+@app.route('/play_12bar_blues', methods=['POST'])
+def play_12bar_blues():
+    """Play a 12-bar blues progression in the chosen key"""
+    try:
+        data = request.get_json()
+        root_note = data.get('root_note', 'C')
+        duration = float(data.get('duration', 1.0))  # Shorter duration for progression
+        velocity = int(data.get('velocity', 96))
+        
+        # 12-bar blues progression pattern
+        # I = root major, IV = 4th major, V = 5th major
+        blues_progression = [
+            (root_note, "major"),      # Bar 1-4: I chord
+            (root_note, "major"),      # Bar 2
+            (root_note, "major"),      # Bar 3
+            (root_note, "major"),      # Bar 4
+            (get_4th_note(root_note), "major"),      # Bar 5-6: IV chord
+            (get_4th_note(root_note), "major"),      # Bar 6
+            (root_note, "major"),      # Bar 7-8: I chord
+            (root_note, "major"),      # Bar 8
+            (get_5th_note(root_note), "major"),      # Bar 9: V chord
+            (get_4th_note(root_note), "major"),      # Bar 10: IV chord
+            (root_note, "major"),      # Bar 11-12: I chord
+            (root_note, "major")       # Bar 12
+        ]
+        
+        progression_info = []
+        all_notes = []
+        
+        # Play each chord in the progression
+        for i, (note, chord_type) in enumerate(blues_progression, 1):
+            chord_notes = get_chord_notes(chord_type, note)
+            note_names = [get_note_name(note) for note in chord_notes]
+            
+            progression_info.append({
+                "bar": i,
+                "chord": f"{note} {chord_type}",
+                "notes": note_names,
+                "midi_notes": chord_notes
+            })
+            
+            # Play the chord
+            audio_result = generate_chord_audio(chord_notes, duration, velocity)
+            if audio_result["success"]:
+                all_notes.extend(chord_notes)
+            else:
+                # If audio fails, just collect the notes for MIDI
+                all_notes.extend(chord_notes)
+        
+        # Create MIDI file for the entire progression
+        midi_result = create_midi_file(all_notes, duration * 12, velocity)
+        
+        if midi_result["success"]:
+            result = {
+                "success": True,
+                "progression": progression_info,
+                "root_note": root_note,
+                "method": "midi",
+                "file_path": midi_result["file_path"],
+                "message": f"Successfully played 12-bar blues in {root_note} key! Created MIDI file for download."
+            }
+        else:
+            result = {
+                "success": False,
+                "progression": progression_info,
+                "root_note": root_note,
+                "error": midi_result.get("error", "Unknown"),
+                "message": f"Failed to create MIDI file for 12-bar blues in {root_note} key"
+            }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while processing the 12-bar blues request"
+        })
+
+def get_4th_note(root_note):
+    """Get the 4th note (perfect 4th) from the root note"""
+    notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    root_index = notes.index(root_note)
+    fourth_index = (root_index + 5) % 12  # Perfect 4th is 5 semitones up
+    return notes[fourth_index]
+
+def get_5th_note(root_note):
+    """Get the 5th note (perfect 5th) from the root note"""
+    notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    root_index = notes.index(root_note)
+    fifth_index = (root_index + 7) % 12  # Perfect 5th is 7 semitones up
+    return notes[fifth_index]
+
 @app.route('/download_midi')
 def download_midi():
     """Download the generated MIDI file"""

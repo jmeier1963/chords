@@ -268,6 +268,12 @@
                 <button type="submit" class="btn" id="generateBtn">
                     🎵 Generate & Play Chord
                 </button>
+                
+                <div style="margin-top: 20px; text-align: center;">
+                    <button type="button" class="btn" id="bluesBtn" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                        🎸 Play 12-Bar Blues Progression
+                    </button>
+                </div>
             </form>
 
             <div class="loading" id="loading">
@@ -331,6 +337,45 @@
                 });
             } finally {
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('generateBtn').disabled = false;
+            }
+        });
+
+        // 12-Bar Blues button functionality
+        document.getElementById('bluesBtn').addEventListener('click', async function() {
+            const formData = new FormData(document.getElementById('chordForm'));
+            const data = {
+                root_note: formData.get('rootNote'),
+                duration: parseFloat(formData.get('duration')),
+                velocity: parseInt(formData.get('velocity'))
+            };
+
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('bluesBtn').disabled = true;
+            document.getElementById('generateBtn').disabled = true;
+
+            try {
+                const response = await fetch('/play_12bar_blues', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                displayBluesResult(result);
+            } catch (error) {
+                displayBluesResult({
+                    success: false,
+                    error: error.message,
+                    message: 'Failed to connect to server'
+                });
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('bluesBtn').disabled = false;
                 document.getElementById('generateBtn').disabled = false;
             }
         });
@@ -399,6 +444,96 @@
                     <div class="info-item">
                         <h4>Chord Type</h4>
                         <p>${result.chord_type || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Status</h4>
+                        <p>Failed</p>
+                    </div>
+                `;
+
+                notesDisplay.innerHTML = '';
+                downloadBtn.style.display = 'none';
+
+                // Display error message
+                messageArea.innerHTML = `<div class="error-message">${result.message}</div>`;
+            }
+        }
+
+        function displayBluesResult(result) {
+            const resultSection = document.getElementById('resultSection');
+            const resultCard = document.getElementById('resultCard');
+            const resultTitle = document.getElementById('resultTitle');
+            const chordInfo = document.getElementById('chordInfo');
+            const notesDisplay = document.getElementById('notesDisplay');
+            const messageArea = document.getElementById('messageArea');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            // Show result section
+            resultSection.style.display = 'block';
+
+            // Set card style
+            resultCard.className = 'result-card ' + (result.success ? 'result-success' : 'result-error');
+
+            // Set title
+            resultTitle.textContent = result.success ? '12-Bar Blues Progression Complete!' : 'Blues Progression Failed';
+
+            if (result.success) {
+                // Display blues progression information
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Key</h4>
+                        <p>${result.root_note}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Progression</h4>
+                        <p>12-Bar Blues</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Method</h4>
+                        <p>${result.method}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Total Bars</h4>
+                        <p>12</p>
+                    </div>
+                `;
+
+                // Display progression details
+                let progressionHtml = '<h4>12-Bar Blues Progression:</h4><div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0;">';
+                
+                result.progression.forEach((bar, index) => {
+                    const barNumber = index + 1;
+                    progressionHtml += `
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <strong>Bar ${barNumber}</strong><br>
+                            <span style="color: #667eea; font-weight: 600;">${bar.chord}</span><br>
+                            <small style="color: #666;">${bar.notes.join(', ')}</small>
+                        </div>
+                    `;
+                });
+                
+                progressionHtml += '</div>';
+                notesDisplay.innerHTML = progressionHtml;
+
+                // Show download button for MIDI files
+                if (result.method === 'midi') {
+                    downloadBtn.style.display = 'block';
+                    downloadBtn.onclick = () => window.location.href = '/download_midi';
+                } else {
+                    downloadBtn.style.display = 'none';
+                }
+
+                // Display success message
+                messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
+            } else {
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Key</h4>
+                        <p>${result.root_note || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Progression</h4>
+                        <p>12-Bar Blues</p>
                     </div>
                     <div class="info-item">
                         <h4>Status</h4>
