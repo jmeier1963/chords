@@ -190,7 +190,7 @@ chords/
 
 Enable debug logging by checking the browser console for detailed information about requests and responses.
 
-## Development
+## Testing & Code Structure
 
 ### Running Tests
 
