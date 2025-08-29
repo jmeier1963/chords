@@ -525,7 +525,7 @@
             resultCard.className = 'result-card ' + (result.success ? 'result-success' : 'result-error');
 
             // Set title
-            resultTitle.textContent = result.success ? 'Chord Generated Successfully!' : 'Generation Failed';
+            resultTitle.textContent = result.success ? '' : 'Generation Failed';
 
             // Display chord information
             if (result.success) {
@@ -591,7 +591,7 @@
                 }
 
                 // Display success message
-                messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
+                messageArea.innerHTML = ''; // No message needed since user can hear the chord
             } else {
                 chordInfo.innerHTML = `
                     <div class="info-item">
