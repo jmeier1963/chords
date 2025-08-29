@@ -492,13 +492,24 @@
         // Event delegation for scale buttons (since they're dynamically created)
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('play-scale-btn')) {
-                const scaleNotes = JSON.parse(e.target.dataset.scaleNotes);
-                console.log('Scale button clicked, notes:', scaleNotes);
-                playScale(scaleNotes);
+                console.log('Scale button clicked!'); // Debug log
+                console.log('Button element:', e.target); // Debug log
+                console.log('Data attributes:', e.target.dataset); // Debug log
+                
+                try {
+                    const scaleNotes = JSON.parse(e.target.dataset.scaleNotes);
+                    console.log('Scale button clicked, notes:', scaleNotes);
+                    playScale(scaleNotes);
+                } catch (error) {
+                    console.error('Error parsing scale notes:', error);
+                    console.error('Raw data:', e.target.dataset.scaleNotes);
+                }
             }
         });
 
         function displayResult(result) {
+            console.log('displayResult called with:', result); // Debug log
+            
             const resultSection = document.getElementById('resultSection');
             const resultCard = document.getElementById('resultCard');
             const resultTitle = document.getElementById('resultTitle');
@@ -545,6 +556,7 @@
                 
                 // Display scales if available
                 if (result.scales && result.scales.length > 0) {
+                    console.log('Scales found:', result.scales); // Debug log
                     const scalesHtml = `
                         <div style="margin-top: 20px;">
                             <h4>🎵 Scales for Improvisation:</h4>
@@ -564,7 +576,10 @@
                             </div>
                         </div>
                     `;
+                    console.log('Generated scales HTML:', scalesHtml); // Debug log
                     notesDisplay.innerHTML += scalesHtml;
+                } else {
+                    console.log('No scales found in result'); // Debug log
                 }
 
                 // Show download button for MIDI files
