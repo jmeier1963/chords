@@ -585,26 +585,43 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
         # Convert note names to MIDI numbers
         midi_notes = []
         for note in scale_notes:
-            # Find the note in our note mapping
-            for midi_num in range(60, 72):  # C4 to B4 octave
-                note_name = get_note_name(midi_num)
-                # Check if the note matches (e.g., "C" matches "C4")
-                if note_name.startswith(note):
-                    midi_notes.append(midi_num)
+            # Find the note in our note mapping - search a wider range
+            note_found = False
+            for octave in range(3, 6):  # C3 to C6 (wider range)
+                for semitone in range(12):  # All 12 semitones
+                    midi_num = 60 + (octave - 4) * 12 + semitone
+                    note_name = get_note_name(midi_num)
+                    # Check if the note matches (e.g., "C" matches "C4")
+                    if note_name.startswith(note):
+                        midi_notes.append(midi_num)
+                        note_found = True
+                        break
+                if note_found:
                     break
+            
+            # If note not found, use a default octave (C4)
+            if not note_found:
+                # Map basic notes to C4 octave
+                note_map = {"C": 60, "C#": 61, "Db": 61, "D": 62, "D#": 63, "Eb": 63, 
+                           "E": 64, "F": 65, "F#": 66, "Gb": 66, "G": 67, "G#": 68, 
+                           "Ab": 68, "A": 69, "A#": 70, "Bb": 70, "B": 71}
+                if note in note_map:
+                    midi_notes.append(note_map[note])
+                else:
+                    print(f"Warning: Could not convert note '{note}' to MIDI")
         
         # Play each note in sequence with proper timing
         for i, note in enumerate(midi_notes):
             fs.noteon(0, note, velocity)
             # Use a longer duration for each note to make it audible
-            time.sleep(duration + 0.1)  # Add 0.1s to make notes more distinct
+            time.sleep(duration + 0.2)  # Increase duration to ensure notes are heard
             fs.noteoff(0, note)
-            # Small pause between notes
-            if i < len(midi_notes) - 1:  # Don't pause after the last note
-                time.sleep(0.1)
+            # Small pause between notes (except after the last note)
+            if i < len(midi_notes) - 1:
+                time.sleep(0.15)  # Slightly longer pause between notes
         
-        # Keep the last note playing a bit longer
-        time.sleep(0.2)
+        # Ensure the last note is fully heard before cleanup
+        time.sleep(0.3)
         
         fs.delete()
         return {"success": True, "method": "audio", "driver": driver}
