@@ -602,13 +602,13 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
             else:
                 return {"success": False, "error": f"Unknown root note: {root_note}", "method": "audio"}
         
-        # Build the scale in ascending order within one octave
+        # Build the scale in ascending order, ensuring each note is unique
         midi_notes = []
-        base_octave = 4  # Start from C4 octave
         base_midi = 60   # C4 = 60
         
+        # First, let's calculate all semitone distances and sort them
+        scale_with_distances = []
         for note in scale_notes:
-            # Find the note's position relative to the root
             try:
                 note_index = chromatic_scale.index(note)
             except ValueError:
@@ -622,19 +622,40 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
             # Calculate the semitone distance from the root
             semitone_distance = note_index - root_index
             
-            # For ascending scales, we want positive distances
+            # Handle wrapping around the chromatic scale
             # If a note comes before the root in the chromatic scale, it should be higher
-            if semitone_distance <= 0:
+            if semitone_distance < 0:
                 semitone_distance += 12
             
-            # Calculate the MIDI note number
-            midi_num = base_midi + semitone_distance
-            
-            # Ensure we stay within the C4 octave (60-71)
-            if midi_num > 71:
-                midi_num -= 12
+            scale_with_distances.append((note, semitone_distance))
+        
+        # Sort by semitone distance to ensure ascending order
+        scale_with_distances.sort(key=lambda x: x[1])
+        
+        # Now build the MIDI notes, ensuring each is unique and ascending
+        # We need to handle octave transitions properly
+        for i, (note, semitone_distance) in enumerate(scale_with_distances):
+            if i == 0:
+                # First note starts at base_midi
+                midi_num = base_midi
+            else:
+                # For subsequent notes, calculate the actual semitone distance from the previous note
+                prev_semitone = scale_with_distances[i-1][1]
+                actual_distance = semitone_distance - prev_semitone
+                
+                # If the distance is 0 or negative, we need to go up an octave
+                if actual_distance <= 0:
+                    actual_distance += 12
+                
+                # Calculate MIDI note relative to the previous note
+                midi_num = midi_notes[-1] + actual_distance
             
             midi_notes.append(midi_num)
+        
+        # Debug: Print the actual MIDI notes being generated
+        print(f"Scale notes: {scale_notes}")
+        print(f"Generated MIDI notes: {midi_notes}")
+        print(f"Note names: {[get_note_name(note) for note in midi_notes]}")
         
         # Play each note in sequence with proper timing
         for i, note in enumerate(midi_notes):
