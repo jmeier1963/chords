@@ -622,8 +622,9 @@ def play_scale_notes(scale_notes, duration=0.5, velocity=80):
             # Calculate the semitone distance from the root
             semitone_distance = note_index - root_index
             
-            # Ensure we stay within one octave (0-11 semitones)
-            if semitone_distance < 0:
+            # For ascending scales, we want positive distances
+            # If a note comes before the root in the chromatic scale, it should be higher
+            if semitone_distance <= 0:
                 semitone_distance += 12
             
             # Calculate the MIDI note number
