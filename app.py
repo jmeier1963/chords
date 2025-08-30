@@ -14,9 +14,67 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 import openai
+from pydantic import BaseModel
+from typing import List, Dict
 
 # Load environment variables
 load_dotenv()
+
+# Pydantic schema for structured chord sheet output
+class ChordSheet(BaseModel):
+    meta: Dict[str, str]  # e.g., {"title": "All of Me", "key": "C major", ...}
+    chords: Dict[str, List[str]]  # section -> list of bar strings
+    transposition: Dict[str, Dict[str, List[str]]]  # instrument -> bars
+    notes: List[str]  # freeform performance notes
+
+def _normalize_for_validation(candidate_json_str: str) -> str:
+    """Normalize JSON data for validation"""
+    data = json.loads(candidate_json_str)
+    meta = data.get("meta", {})
+    # Coerce tempo → string
+    if "tempo" in meta and isinstance(meta["tempo"], (int, float)):
+        meta["tempo"] = str(meta["tempo"])
+    # Normalize other fields if model sometimes emits numbers
+    for k in ("time_signature", "key", "style", "form", "composer", "title"):
+        if k in meta and not isinstance(meta[k], str):
+            meta[k] = str(meta[k])
+    data["meta"] = meta
+    return json.dumps(data, ensure_ascii=False)
+
+def _first_json_block(text: str) -> str:
+    """Extract first JSON block from text"""
+    text = text.strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    depth = 0; start = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0: start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                return text[start:i+1]
+    import re
+    m = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    return m.group(0) if m else text
+
+def _extract_output_text(resp) -> str:
+    """Extract output text from response"""
+    txt = getattr(resp, "output_text", None)
+    if txt: return txt
+    out = getattr(resp, "output", None)
+    if out and isinstance(out, list):
+        chunks = []
+        for item in out:
+            content = getattr(item, "content", None)
+            if isinstance(content, list):
+                for c in content:
+                    if getattr(c, "type", None) in ("output_text", "text"):
+                        t = getattr(c, "text", None)
+                        if t: chunks.append(t)
+        if chunks: return "".join(chunks)
+    return json.dumps(getattr(resp, "model_dump", lambda: {})(), ensure_ascii=False)
 
 app = Flask(__name__)
 
@@ -897,7 +955,7 @@ def generate_chord_table():
         result = {
             "success": True,
             "song_title": song_title,
-            "chord_sheet": result_data.get("chord_sheet", ""),
+            "chord_sheet": result_data.get("chord_sheet"),
             "message": f"Successfully generated chord sheet for '{song_title}'!"
         }
         
@@ -910,59 +968,70 @@ def generate_chord_table():
             "message": "An error occurred while generating the chord table"
         })
 
+
+
+
 def generate_chord_table_with_openai(song_title):
     """Use OpenAI GPT-5 with Responses API to generate a complete chord sheet"""
     try:
         SYSTEM_INSTRUCTIONS = """You are a meticulous music engraver.
-- Output ONLY the chord sheet for the requested song, in Markdown.
-- Avoid melody/lyrics unless asked; focus on harmonic form.
-- Prefer concise, standard chord symbols (C, Dm7, G7, Cmaj7, F#m7b5, etc.).
-- Include: title, composer/unknown, key, tempo (BPM), time signature, form sections (A, B, bridge), and barlines.
-- Use section headers and 4-bar line breaks. Show turnarounds/endings if typical.
-- If the song is not in the public domain or is ambiguous, produce a tasteful ORIGINAL progression in the requested style that evokes the vibe without quoting protected material.
-- Offer a transpose table by common instruments at the end (Concert, Bb, Eb).
-"""
+        Return ONLY valid JSON with keys: meta, chords, transposition, notes. No prose, no code fences.
+        meta must include: title, composer (or "Unknown/Original"), style, key, tempo, time_signature, form.
+        chords: dict mapping sections (A1, B, A2, etc.) -> list of bar strings.
+        transposition: dict with instrument keys (Concert, Bb, Eb), each has {"bars":[...]} for first 8 bars.
+        notes: short bullet points with performance/arranging advice.
+        If the title is likely copyrighted, output an original progression in the style without quoting the original.
+        """
 
         PROMPT_TEMPLATE = """Create a chord sheet.
 
-Title: {title}
-Style: jazz standard
-Preferred key: C major
-Time signature: 4/4
-Tempo (BPM): 120
+        Title: {title}
+        Style: {style}
+        Preferred key: {key}
+        Time signature: {time_sig}
+        Tempo (BPM): {bpm}
 
-Formatting requirements:
-- Markdown
-- Header block with metadata
-- Form diagram (AABA, ABAC, etc.) if applicable
-- Chords laid out in 4-bar groupings with barlines like: | Cmaj7  | Dm7  G7 | Cmaj7  | Cmaj7 |
-- Include an optional intro and ending if stylistically appropriate
-- Provide a 2–4 bar vamp if common for the style
-- Add a simple transpose table (Concert, Bb, Eb) for the first 8 bars
+        Output JSON ONLY (no markdown).
+        """
 
-If the title is likely a copyrighted song, invent an original progression in the same style and clearly mark it as 'Original progression in the style of jazz standard'.
-"""
-
-        user_prompt = PROMPT_TEMPLATE.format(title=song_title)
+        user_prompt = PROMPT_TEMPLATE.format(
+            title=song_title,
+            style="jazz standard",
+            key="C major", 
+            time_sig="4/4",
+            bpm=120
+        )
         
         client = openai.OpenAI()
         
-        # Create the response using the standard Chat Completions API
+        # Create the response using the structured JSON format
         response = client.responses.create(
-            model="gpt-5",
-            instructions=SYSTEM_INSTRUCTIONS,
-            input=user_prompt,
+            model="gpt-5-mini",
+            input=[
+                {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_output_tokens=1200,
+            reasoning={"effort": "minimal"},
+            text={"verbosity": "low"},
+            store=False
         )
 
-        output = response.output_text    # unified text accessor (handles tool/segment stitching)
+        # Extract and parse the response
+        raw = _extract_output_text(response)
+        candidate = _first_json_block(raw) or raw
+        candidate = _normalize_for_validation(candidate)
         
-        # Add timestamp to the output
-        from datetime import datetime
-        stamped_output = f"# {song_title}\n\n_Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}_\n\n" + output
-        
-        print(f"Raw GPT-5 response for '{song_title}': {stamped_output}")
-        
-        return {"success": True, "data": {"chord_sheet": stamped_output}}
+        try:
+            chord_sheet = ChordSheet.model_validate_json(candidate)
+            print(f"Raw GPT-5 response for '{song_title}': {chord_sheet}")
+            # Convert Pydantic object to dictionary for JSON serialization
+            chord_sheet_dict = chord_sheet.model_dump()
+            return {"success": True, "data": {"chord_sheet": chord_sheet_dict}}
+        except Exception as parse_error:
+            print(f"JSON parsing error: {parse_error}")
+            print(f"Raw output: {raw}")
+            return {"success": False, "error": f"Failed to parse structured response: {parse_error}"}
             
     except Exception as e:
         print(f"OpenAI API error: {e}")
@@ -970,5 +1039,4 @@ If the title is likely a copyrighted song, invent an original progression in the
         
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
-
 

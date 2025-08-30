@@ -339,8 +339,10 @@
                 
                 console.log('Form data:', data); // Debug log
 
-                // Show loading
-                document.getElementById('loading').style.display = 'block';
+                // Show loading with appropriate message
+                const loadingElement = document.getElementById('loading');
+                loadingElement.style.display = 'block';
+                loadingElement.querySelector('p').textContent = 'Generating chord audio...';
                 document.getElementById('resultSection').style.display = 'none';
                 document.getElementById('generateBtn').disabled = true;
 
@@ -382,8 +384,10 @@
                 
                 console.log('Button click data:', data); // Debug log
 
-                // Show loading
-                document.getElementById('loading').style.display = 'block';
+                // Show loading with appropriate message
+                const loadingElement = document.getElementById('loading');
+                loadingElement.style.display = 'block';
+                loadingElement.querySelector('p').textContent = 'Generating chord audio...';
                 document.getElementById('resultSection').style.display = 'none';
                 document.getElementById('generateBtn').disabled = true;
 
@@ -419,8 +423,10 @@
                 velocity: parseInt(formData.get('velocity'))
             };
 
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
+            // Show loading with appropriate message
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+            loadingElement.querySelector('p').textContent = 'Playing 12-bar blues progression...';
             document.getElementById('resultSection').style.display = 'none';
             document.getElementById('bluesBtn').disabled = true;
             document.getElementById('generateBtn').disabled = true;
@@ -458,8 +464,10 @@
                 return;
             }
 
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
+            // Show loading with appropriate message
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+            loadingElement.querySelector('p').textContent = 'Analyzing song and generating chords...';
             document.getElementById('resultSection').style.display = 'none';
             document.getElementById('analyzeSongBtn').disabled = true;
             document.getElementById('generateBtn').disabled = true;
@@ -501,8 +509,10 @@
                 return;
             }
 
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
+            // Show loading with appropriate message
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+            loadingElement.querySelector('p').textContent = 'Generating chord table...';
             document.getElementById('resultSection').style.display = 'none';
             document.getElementById('chordTableBtn').disabled = true;
             document.getElementById('analyzeSongBtn').disabled = true;
@@ -837,6 +847,8 @@
         }
         
         function displayChordTableResult(result) {
+            console.log('displayChordTableResult called with:', result); // Debug log
+            
             const resultSection = document.getElementById('resultSection');
             const resultCard = document.getElementById('resultCard');
             const resultTitle = document.getElementById('resultTitle');
@@ -851,60 +863,127 @@
             // Set card style
             resultCard.className = 'result-card ' + (result.success ? 'result-success' : 'result-error');
 
-            // Set title
-            resultTitle.textContent = result.success ? `Chord Table: ${result.song_title}` : 'Chord Table Generation Failed';
+            if (result.success && result.chord_sheet) {
+                const chordSheet = result.chord_sheet;
+                console.log('Chord sheet data:', chordSheet); // Debug log
+                console.log('Chord sheet meta:', chordSheet.meta); // Debug log
+                console.log('Chord sheet chords:', chordSheet.chords); // Debug log
+                
+                // Set title
+                resultTitle.textContent = `Chord Table: ${chordSheet.meta?.title || 'Song'}`;
 
-            if (result.success) {
-                // Display song information
+                // Display song information from metadata
                 chordInfo.innerHTML = `
                     <div class="info-item">
                         <h4>Song Title</h4>
-                        <p>${result.song_title}</p>
+                        <p>${chordSheet.meta?.title || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Composer</h4>
+                        <p>${chordSheet.meta?.composer || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Style</h4>
+                        <p>${chordSheet.meta?.style || 'N/A'}</p>
                     </div>
                     <div class="info-item">
                         <h4>Key</h4>
-                        <p>${result.key}</p>
+                        <p>${chordSheet.meta?.key || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Tempo</h4>
+                        <p>${chordSheet.meta?.tempo || 'N/A'}</p>
                     </div>
                     <div class="info-item">
                         <h4>Time Signature</h4>
-                        <p>${result.time_signature || '4/4'}</p>
+                        <p>${chordSheet.meta?.time_signature || 'N/A'}</p>
                     </div>
                     <div class="info-item">
-                        <h4>Total Bars</h4>
-                        <p>${result.total_bars}</p>
+                        <h4>Form</h4>
+                        <p>${chordSheet.meta?.form || 'N/A'}</p>
                     </div>
                 `;
 
-                // Display chord sheet in markdown format
-                let tableHtml = `<h4 style="text-align: center; margin: 20px 0; color: #667eea;">Chord Sheet for "${result.song_title}"</h4>`;
+                // Display structured chord sheet data
+                let tableHtml = `<h4 style="text-align: center; margin: 20px 0; color: #667eea;">Chord Sheet for "${chordSheet.meta?.title || 'Song'}"</h4>`;
                 
+                // Remove the redundant check since we already know chordSheet exists
+                    
+                    // Display metadata
+                    if (chordSheet.meta) {
+                        tableHtml += '<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">';
+                        tableHtml += '<h5 style="color: #667eea; margin-bottom: 15px;">Song Information</h5>';
+                        tableHtml += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">';
+                        for (const [key, value] of Object.entries(chordSheet.meta)) {
+                            tableHtml += `<div><strong>${key.charAt(0).toUpperCase() + key.slice(1)}:</strong> ${value}</div>`;
+                        }
+                        tableHtml += '</div></div>';
+                    }
+                    
+                    // Display chord sections
+                    if (chordSheet.chords) {
+                        tableHtml += '<div style="background: white; padding: 30px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">';
+                        tableHtml += '<h5 style="color: #667eea; margin-bottom: 20px;">Chord Progression</h5>';
+                        
+                        for (const [section, bars] of Object.entries(chordSheet.chords)) {
+                            tableHtml += `<div style="margin-bottom: 25px;">`;
+                            tableHtml += `<h6 style="color: #495057; margin-bottom: 10px; font-size: 16px;">${section}</h6>`;
+                            tableHtml += '<div style="font-family: monospace; background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #667eea;">';
+                            tableHtml += bars.map((bar, index) => `| ${bar} |`).join(' ');
+                            tableHtml += '</div></div>';
+                        }
+                        tableHtml += '</div>';
+                    }
+                    
+                    // Display transposition tables
+                    if (chordSheet.transposition) {
+                        tableHtml += '<div style="background: white; padding: 30px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">';
+                        tableHtml += '<h5 style="color: #667eea; margin-bottom: 20px;">Transposition Tables</h5>';
+                        
+                        for (const [instrument, data] of Object.entries(chordSheet.transposition)) {
+                            tableHtml += `<div style="margin-bottom: 20px;">`;
+                            tableHtml += `<h6 style="color: #495057; margin-bottom: 10px;">${instrument} Instruments</h6>`;
+                            if (data.bars) {
+                                tableHtml += '<div style="font-family: monospace; background: #f8f9fa; padding: 15px; border-radius: 6px;">';
+                                tableHtml += data.bars.map((bar, index) => `| ${bar} |`).join(' ');
+                                tableHtml += '</div>';
+                            }
+                            tableHtml += '</div>';
+                        }
+                        tableHtml += '</div>';
+                    }
+                    
+                    // Display performance notes
+                    if (chordSheet.notes && chordSheet.notes.length > 0) {
+                        tableHtml += '<div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">';
+                        tableHtml += '<h5 style="color: #28a745; margin-bottom: 15px;">Performance Notes</h5>';
+                        tableHtml += '<ul style="margin: 0; padding-left: 20px;">';
+                        chordSheet.notes.forEach(note => {
+                            tableHtml += `<li style="margin-bottom: 8px; line-height: 1.5;">${note}</li>`;
+                        });
+                        tableHtml += '</ul></div>';
+                    }
+                    
                 // Display the chord sheet content
-                if (result.chord_sheet) {
-                    tableHtml += '<div style="background: white; padding: 30px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: monospace; white-space: pre-wrap; line-height: 1.6; text-align: left;">';
-                    tableHtml += result.chord_sheet.replace(/\\n/g, '<br>');
-                    tableHtml += '</div>';
-                } else {
-                    tableHtml += '<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; color: #666;">';
-                    tableHtml += '<p>No chord sheet content available</p>';
-                    tableHtml += '</div>';
-                }
-                
                 notesDisplay.innerHTML = tableHtml;
 
                 // Hide download button for chord tables
                 downloadBtn.style.display = 'none';
 
                 // Display success message
-                messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
+                messageArea.innerHTML = `<div class="success-message">Successfully generated chord table for ${chordSheet.meta?.title || 'song'}</div>`;
             } else {
+                // Set title for error case
+                resultTitle.textContent = 'Chord Table Generation Failed';
+                
                 chordInfo.innerHTML = `
-                    <div class="info-item">
-                        <h4>Song Title</h4>
-                        <p>${result.song_title || 'N/A'}</p>
-                    </div>
                     <div class="info-item">
                         <h4>Status</h4>
                         <p>Failed</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Error</h4>
+                        <p>${result.error || result.message || 'Unknown error occurred'}</p>
                     </div>
                 `;
 
@@ -912,7 +991,7 @@
                 downloadBtn.style.display = 'none';
 
                 // Display error message
-                messageArea.innerHTML = `<div class="error-message">${result.message}</div>`;
+                messageArea.innerHTML = `<div class="error-message">${result.error || result.message || 'An error occurred while generating the chord table'}</div>`;
             }
         }
         
