@@ -284,6 +284,9 @@
                     <button type="button" class="btn" id="analyzeSongBtn" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);">
                         🤖 Analyze Song & Play Chords
                     </button>
+                    <button type="button" class="btn" id="chordTableBtn" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 10px;">
+                        📊 Generate Chord Table
+                    </button>
                 </div>
             </form>
 
@@ -483,6 +486,51 @@
                 });
             } finally {
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeSongBtn').disabled = false;
+                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('bluesBtn').disabled = false;
+            }
+        });
+        
+        // Chord Table button functionality
+        document.getElementById('chordTableBtn').addEventListener('click', async function() {
+            const songTitle = document.getElementById('songTitle').value.trim();
+            
+            if (!songTitle) {
+                alert('Please enter a song title');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('chordTableBtn').disabled = true;
+            document.getElementById('analyzeSongBtn').disabled = true;
+            document.getElementById('generateBtn').disabled = true;
+            document.getElementById('bluesBtn').disabled = true;
+
+            try {
+                const response = await fetch('/generate_chord_table', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        song_title: songTitle
+                    })
+                });
+
+                const result = await response.json();
+                displayChordTableResult(result);
+            } catch (error) {
+                displayChordTableResult({
+                    success: false,
+                    error: error.message,
+                    message: 'Failed to connect to server'
+                });
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('chordTableBtn').disabled = false;
                 document.getElementById('analyzeSongBtn').disabled = false;
                 document.getElementById('generateBtn').disabled = false;
                 document.getElementById('bluesBtn').disabled = false;
@@ -765,6 +813,126 @@
                 } else {
                     downloadBtn.style.display = 'none';
                 }
+
+                // Display success message
+                messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
+            } else {
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Song Title</h4>
+                        <p>${result.song_title || 'N/A'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Status</h4>
+                        <p>Failed</p>
+                    </div>
+                `;
+
+                notesDisplay.innerHTML = '';
+                downloadBtn.style.display = 'none';
+
+                // Display error message
+                messageArea.innerHTML = `<div class="error-message">${result.message}</div>`;
+            }
+        }
+        
+        function displayChordTableResult(result) {
+            const resultSection = document.getElementById('resultSection');
+            const resultCard = document.getElementById('resultCard');
+            const resultTitle = document.getElementById('resultTitle');
+            const chordInfo = document.getElementById('chordInfo');
+            const notesDisplay = document.getElementById('notesDisplay');
+            const messageArea = document.getElementById('messageArea');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            // Show result section
+            resultSection.style.display = 'block';
+
+            // Set card style
+            resultCard.className = 'result-card ' + (result.success ? 'result-success' : 'result-error');
+
+            // Set title
+            resultTitle.textContent = result.success ? `Chord Table: ${result.song_title}` : 'Chord Table Generation Failed';
+
+            if (result.success) {
+                // Display song information
+                chordInfo.innerHTML = `
+                    <div class="info-item">
+                        <h4>Song Title</h4>
+                        <p>${result.song_title}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Key</h4>
+                        <p>${result.key}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Time Signature</h4>
+                        <p>${result.time_signature || '4/4'}</p>
+                    </div>
+                    <div class="info-item">
+                        <h4>Total Bars</h4>
+                        <p>${result.total_bars}</p>
+                    </div>
+                `;
+
+                // Display chord table in sheet music format
+                let tableHtml = `<h4 style="text-align: center; margin: 20px 0; color: #667eea;">Chord Chart for "${result.song_title}"</h4>`;
+                
+                // Create the chord table similar to sheet music
+                tableHtml += '<div style="overflow-x: auto; margin: 20px 0;">';
+                tableHtml += '<table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">';
+                
+                // Header row with beat numbers
+                tableHtml += '<thead><tr style="background: #667eea; color: white;">';
+                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Bar</th>';
+                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 1</th>';
+                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 2</th>';
+                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 3</th>';
+                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 4</th>';
+                tableHtml += '</tr></thead><tbody>';
+                
+                // Generate rows for each bar
+                let currentBar = 1;
+                let currentBeat = 1;
+                
+                result.chord_table.forEach((chord, index) => {
+                    if (currentBeat === 1) {
+                        tableHtml += '<tr>';
+                        tableHtml += `<td style="padding: 12px; text-align: center; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">${currentBar}</td>`;
+                    }
+                    
+                    tableHtml += `<td style="padding: 12px; text-align: center; border: 1px solid #ddd; background: ${chord ? '#e8f5e8' : '#fff'}; color: ${chord ? '#2d5a2d' : '#999'}; font-weight: ${chord ? 'bold' : 'normal'};">${chord || '-'}</td>`;
+                    
+                    currentBeat++;
+                    if (currentBeat > 4) {
+                        tableHtml += '</tr>';
+                        currentBeat = 1;
+                        currentBar++;
+                    }
+                });
+                
+                // Close any remaining row
+                if (currentBeat > 1) {
+                    tableHtml += '</tr>';
+                }
+                
+                tableHtml += '</tbody></table></div>';
+                
+                // Add chord explanations
+                if (result.explanations) {
+                    tableHtml += '<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">';
+                    tableHtml += '<h4 style="color: #667eea; margin-bottom: 15px;">Chord Change Explanations:</h4>';
+                    tableHtml += '<div style="line-height: 1.6;">';
+                    result.explanations.forEach(explanation => {
+                        tableHtml += `<p><strong>${explanation.chord}:</strong> ${explanation.explanation}</p>`;
+                    });
+                    tableHtml += '</div></div>';
+                }
+                
+                notesDisplay.innerHTML = tableHtml;
+
+                // Hide download button for chord tables
+                downloadBtn.style.display = 'none';
 
                 // Display success message
                 messageArea.innerHTML = `<div class="success-message">${result.message}</div>`;
