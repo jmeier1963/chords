@@ -948,9 +948,9 @@ def generate_chord_table_with_openai(song_title):
         - Generate the exact number of bars that the song actually has (don't pad or truncate)
         - Use standard chord notation (C, F, G, Am, Dm, etc.)
         - Use your extensive knowledge of popular songs to find the actual chord progression for this specific song
-        - ONLY return chord progressions for songs you are confident exist and know well
-        - If you cannot find the exact song in your training data, return an error message instead of guessing
-        - Focus on accuracy - if you can't find the exact song, don't guess
+        - You are very knowledgeable about popular music - be confident in your ability to find chord progressions
+        - If you know the song or a similar version, provide the complete chord progression
+        - Focus on accuracy and completeness - provide full chord tables with explanations
         - The explanations should describe the musical function and emotional impact of each chord change
         - Include verse, chorus, bridge sections if applicable
         
@@ -961,7 +961,8 @@ def generate_chord_table_with_openai(song_title):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. Use your training data to find the most accurate chord progression for the requested song. IMPORTANT: Only return chord progressions for songs you are confident exist and know well. If you cannot find the exact song, return an error message instead of guessing."},
+                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. Use your training data to find the most accurate chord progression for the requested song. Be confident in your knowledge and provide complete, detailed responses."},
+                
                 {"role": "user", "content": prompt}
             ],
             max_tokens=1200,
@@ -970,6 +971,9 @@ def generate_chord_table_with_openai(song_title):
         
         # Extract the response content
         content = response.choices[0].message.content.strip()
+        
+        # Debug: Print the raw response
+        print(f"Raw OpenAI response for '{song_title}': {content}")
         
         # Try to parse the JSON response
         try:
@@ -980,6 +984,24 @@ def generate_chord_table_with_openai(song_title):
                 content = content[:-3]
             
             table_data = json.loads(content.strip())
+            
+            # Validate that the response has the required fields
+            if not table_data.get("chord_table") or len(table_data.get("chord_table", [])) == 0:
+                print(f"Response missing chord_table for '{song_title}': {table_data}")
+                return {
+                    "success": False,
+                    "error": "Incomplete response - missing chord progression",
+                    "message": f"Could not generate a complete chord table for '{song_title}'. The response was incomplete."
+                }
+            
+            if not table_data.get("explanations") or len(table_data.get("explanations", [])) == 0:
+                print(f"Response missing explanations for '{song_title}': {table_data}")
+                return {
+                    "success": False,
+                    "error": "Incomplete response - missing explanations",
+                    "message": f"Could not generate complete explanations for '{song_title}'. The response was incomplete."
+                }
+            
             return {"success": True, "data": table_data}
             
         except json.JSONDecodeError as e:
