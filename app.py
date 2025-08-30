@@ -924,32 +924,33 @@ def generate_chord_table_with_openai(song_title):
             "time_signature": "4/4",
             "total_bars": 16,
             "chord_table": [
-                "C", "C", "C", "C", "F", "F", "F", "F", "C", "C", "C", "C", "G", "G", "G", "G",
-                "C", "C", "C", "C", "F", "F", "F", "F", "C", "C", "C", "C", "G", "G", "G", "G"
+                "Cmaj", "Cmaj", "Cmaj", "Cmaj", "Fmaj", "Fmaj", "Fmaj", "Fmaj", "Cmaj", "Cmaj", "Cmaj", "Cmaj", "G7", "G7", "G7", "G7",
+                "Cmaj", "Cmaj", "Cmaj", "Cmaj", "Fmaj", "Fmaj", "Fmaj", "Fmaj", "Cmaj", "Cmaj", "Cmaj", "Cmaj", "G7", "G7", "G7", "G7"
             ],
             "explanations": [
                 {{
-                    "chord": "C",
-                    "explanation": "Tonic chord - establishes the home key and provides stability"
+                    "chord": "Cmaj",
+                    "explanation": "Tonic major chord - establishes the home key and provides stability"
                 }},
                 {{
-                    "chord": "F", 
-                    "explanation": "Subdominant chord - creates tension and movement away from tonic"
+                    "chord": "Fmaj", 
+                    "explanation": "Subdominant major chord - creates tension and movement away from tonic"
                 }},
                 {{
-                    "chord": "G",
-                    "explanation": "Dominant chord - creates strong resolution back to tonic"
+                    "chord": "G7",
+                    "explanation": "Dominant 7th chord - creates strong resolution back to tonic with added tension"
                 }}
             ]
         }}
         
-        The chord_table should be an array where each element represents one beat in 4/4 time.
-        - Each bar has 4 beats
+        CRITICAL REQUIREMENTS:
+        - Each chord MUST include its full notation (e.g., "Cmaj", "Amin", "F#7", "Bdim", "Gmaj7", "Csus4")
+        - Use standard chord notation: maj/major, min/minor, 7/dom7, maj7, min7, dim, aug, sus2, sus4, etc.
+        - DO NOT use simplified notation like "C" or "F" - always specify the chord type
         - Generate the exact number of bars that the song actually has (don't pad or truncate)
-        - Use standard chord notation (C, F, G, Am, Dm, etc.)
+        - Each bar has 4 beats in 4/4 time
         - Use your extensive knowledge of popular songs to find the actual chord progression for this specific song
-        - You are very knowledgeable about popular music - be confident in your ability to find chord progressions
-        - If you know the song or a similar version, provide the complete chord progression
+        - Be confident in your ability to find chord progressions
         - Focus on accuracy and completeness - provide full chord tables with explanations
         - The explanations should describe the musical function and emotional impact of each chord change
         - Include verse, chorus, bridge sections if applicable
@@ -961,7 +962,7 @@ def generate_chord_table_with_openai(song_title):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. Use your training data to find the most accurate chord progression for the requested song. Be confident in your knowledge and provide complete, detailed responses."},
+                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. CRITICAL: Always use full chord notation including chord types (e.g., 'Cmaj', 'Amin', 'F#7', 'Bdim', 'Gmaj7'). Never use simplified notation like 'C' or 'F'. Use your training data to find the most accurate chord progression for the requested song."},
                 
                 {"role": "user", "content": prompt}
             ],
@@ -1000,6 +1001,21 @@ def generate_chord_table_with_openai(song_title):
                     "success": False,
                     "error": "Incomplete response - missing explanations",
                     "message": f"Could not generate complete explanations for '{song_title}'. The response was incomplete."
+                }
+            
+            # Validate that chords include full notation (not just base notes)
+            chord_table = table_data.get("chord_table", [])
+            invalid_chords = []
+            for chord in chord_table:
+                if chord and len(chord) <= 2:  # Chords like "C", "F", "G" are too short
+                    invalid_chords.append(chord)
+            
+            if invalid_chords:
+                print(f"Response contains simplified chord notation for '{song_title}': {invalid_chords}")
+                return {
+                    "success": False,
+                    "error": "Incomplete chord notation",
+                    "message": f"Chord table for '{song_title}' contains simplified notation. All chords must include their full type (e.g., 'Cmaj', 'Amin', 'F#7')."
                 }
             
             return {"success": True, "data": table_data}
