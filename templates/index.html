@@ -875,54 +875,18 @@
                     </div>
                 `;
 
-                // Display chord table in sheet music format
-                let tableHtml = `<h4 style="text-align: center; margin: 20px 0; color: #667eea;">Chord Chart for "${result.song_title}"</h4>`;
+                // Display chord sheet in markdown format
+                let tableHtml = `<h4 style="text-align: center; margin: 20px 0; color: #667eea;">Chord Sheet for "${result.song_title}"</h4>`;
                 
-                // Create the chord table similar to sheet music
-                tableHtml += '<div style="overflow-x: auto; margin: 20px 0;">';
-                tableHtml += '<table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">';
-                
-                // Header row with beat numbers
-                tableHtml += '<thead><tr style="background: #667eea; color: white;">';
-                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 1</th>';
-                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 2</th>';
-                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 3</th>';
-                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 4</th>';
-                tableHtml += '</tr></thead><tbody>';
-                
-                // Generate rows for each bar (4 beats per row)
-                let currentBeat = 1;
-                
-                result.chord_table.forEach((chord, index) => {
-                    if (currentBeat === 1) {
-                        tableHtml += '<tr>';
-                    }
-                    
-                    tableHtml += `<td style="padding: 12px; text-align: center; border: 1px solid #ddd; background: ${chord ? '#e8f5e8' : '#fff'}; color: ${chord ? '#2d5a2d' : '#999'}; font-weight: ${chord ? 'bold' : 'normal'};">${chord || '-'}</td>`;
-                    
-                    currentBeat++;
-                    if (currentBeat > 4) {
-                        tableHtml += '</tr>';
-                        currentBeat = 1;
-                    }
-                });
-                
-                // Close any remaining row
-                if (currentBeat > 1) {
-                    tableHtml += '</tr>';
-                }
-                
-                tableHtml += '</tbody></table></div>';
-                
-                // Add chord explanations
-                if (result.explanations) {
-                    tableHtml += '<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">';
-                    tableHtml += '<h4 style="color: #667eea; margin-bottom: 15px;">Chord Change Explanations:</h4>';
-                    tableHtml += '<div style="line-height: 1.6;">';
-                    result.explanations.forEach(explanation => {
-                        tableHtml += `<p><strong>${explanation.chord}:</strong> ${explanation.explanation}</p>`;
-                    });
-                    tableHtml += '</div></div>';
+                // Display the chord sheet content
+                if (result.chord_sheet) {
+                    tableHtml += '<div style="background: white; padding: 30px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: monospace; white-space: pre-wrap; line-height: 1.6; text-align: left;">';
+                    tableHtml += result.chord_sheet.replace(/\\n/g, '<br>');
+                    tableHtml += '</div>';
+                } else {
+                    tableHtml += '<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; color: #666;">';
+                    tableHtml += '<p>No chord sheet content available</p>';
+                    tableHtml += '</div>';
                 }
                 
                 notesDisplay.innerHTML = tableHtml;

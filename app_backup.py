@@ -897,8 +897,12 @@ def generate_chord_table():
         result = {
             "success": True,
             "song_title": song_title,
-            "chord_sheet": result_data.get("chord_sheet", ""),
-            "message": f"Successfully generated chord sheet for '{song_title}'!"
+            "key": result_data.get("key", "C"),
+            "time_signature": result_data.get("time_signature", "4/4"),
+            "total_bars": result_data.get("total_bars", 4),
+            "chord_table": result_data.get("chord_table", []),
+            "explanations": result_data.get("explanations", []),
+            "message": f"Successfully generated chord table for '{song_title}'!"
         }
         
         return jsonify(result)
@@ -947,14 +951,14 @@ If the title is likely a copyrighted song, invent an original progression in the
         
         client = openai.OpenAI()
         
-        # Create the response using the standard Chat Completions API
-        response = client.responses.create(
+        # Create the response using the Responses API
+        resp = client.responses.create(
             model="gpt-5",
             instructions=SYSTEM_INSTRUCTIONS,
             input=user_prompt,
         )
 
-        output = response.output_text    # unified text accessor (handles tool/segment stitching)
+        output = resp.output_text  # unified text accessor (handles tool/segment stitching)
         
         # Add timestamp to the output
         from datetime import datetime
@@ -967,7 +971,129 @@ If the title is likely a copyrighted song, invent an original progression in the
     except Exception as e:
         print(f"OpenAI API error: {e}")
         return {"success": False, "error": str(e)}
+    """Use OpenAI GPT-4o-mini to generate a chord table in sheet music format"""
+    try:
+        prompt = f"""
+        Generate a chord table for the song "{song_title}" in the following JSON format:
+        {{
+            "key": "C",
+            "time_signature": "4/4",
+            "total_bars": 16,
+            "chord_table": [
+                "Cmaj", "Cmaj", "Cmaj", "Cmaj", "Fmaj", "Fmaj", "Fmaj", "Fmaj", "Cmaj", "Cmaj", "Cmaj", "Cmaj", "G7", "G7", "G7", "G7",
+                "Cmaj", "Cmaj", "Cmaj", "Cmaj", "Fmaj", "Fmaj", "Fmaj", "Fmaj", "Cmaj", "Cmaj", "Cmaj", "Cmaj", "G7", "G7", "G7", "G7"
+            ],
+            "explanations": [
+                {{
+                    "chord": "Cmaj",
+                    "explanation": "Tonic major chord - establishes the home key and provides stability"
+                }},
+                {{
+                    "chord": "Fmaj", 
+                    "explanation": "Subdominant major chord - creates tension and movement away from tonic"
+                }},
+                {{
+                    "chord": "G7",
+                    "explanation": "Dominant 7th chord - creates strong resolution back to tonic with added tension"
+                }}
+            ]
+        }}
         
+        CRITICAL REQUIREMENTS:
+        - Each chord MUST include its full notation (e.g., "Cmaj", "Amin", "F#7", "Bdim", "Gmaj7", "Csus4")
+        - Use standard chord notation: maj/major, min/minor, 7/dom7, maj7, min7, dim, aug, sus2, sus4, etc.
+        - DO NOT use simplified notation like "C" or "F" - always specify the chord type
+        - Generate the exact number of bars that the song actually has (don't pad or truncate)
+        - Each bar has 4 beats in 4/4 time
+        - Use your extensive knowledge of popular songs to find the actual chord progression for this specific song
+        - Be confident in your ability to find chord progressions
+        - Focus on accuracy and completeness - provide full chord tables with explanations
+        - The explanations should describe the musical function and emotional impact of each chord change
+        - Include verse, chorus, bridge sections if applicable
+        
+        Return only valid JSON, no additional text.
+        """
+        
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-5",
+            messages=[
+                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. CRITICAL: Always use full chord notation including chord types (e.g., 'Cmaj', 'Amin', 'F#7', 'Bdim', 'Gmaj7'). Never use simplified notation like 'C' or 'F'. Use your training data to find the most accurate chord progression for the requested song."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1200,
+            temperature=0.2
+        )
+        
+        # Extract the response content
+        content = response.choices[0].message.content.strip()
+        
+        # Debug: Print the raw response
+        print(f"Raw OpenAI response for '{song_title}': {content}")
+        
+        # Try to parse the JSON response
+        try:
+            # Remove any markdown formatting if present
+            if content.startswith("```json"):
+                content = content.split("```json")[1]
+            if content.endswith("```"):
+                content = content[:-3]
+            
+            table_data = json.loads(content.strip())
+            
+            # Validate that the response has the required fields
+            if not table_data.get("chord_table") or len(table_data.get("chord_table", [])) == 0:
+                print(f"Response missing chord_table for '{song_title}': {table_data}")
+                return {
+                    "success": False,
+                    "error": "Incomplete response - missing chord progression",
+                    "message": f"Could not generate a complete chord table for '{song_title}'. The response was incomplete."
+                }
+            
+            if not table_data.get("explanations") or len(table_data.get("explanations", [])) == 0:
+                print(f"Response missing explanations for '{song_title}': {table_data}")
+                return {
+                    "success": False,
+                    "error": "Incomplete response - missing explanations",
+                    "message": f"Could not generate complete explanations for '{song_title}'. The response was incomplete."
+                }
+            
+            # Validate that chords include full notation (not just base notes)
+            chord_table = table_data.get("chord_table", [])
+            invalid_chords = []
+            for chord in chord_table:
+                if chord and len(chord) <= 2:  # Chords like "C", "F", "G" are too short
+                    invalid_chords.append(chord)
+            
+            if invalid_chords:
+                print(f"Response contains simplified chord notation for '{song_title}': {invalid_chords}")
+                return {
+                    "success": False,
+                    "error": "Incomplete chord notation",
+                    "message": f"Chord table for '{song_title}' contains simplified notation. All chords must include their full type (e.g., 'Cmaj', 'Amin', 'F#7')."
+                }
+            
+            return {"success": True, "data": table_data}
+            
+        except json.JSONDecodeError as e:
+            # If JSON parsing fails, try to extract key information manually
+            print(f"JSON parsing failed: {e}")
+            print(f"Raw response: {content}")
+            
+            # If JSON parsing fails, return an error instead of a fallback
+            print(f"JSON parsing failed: {e}")
+            print(f"Raw response: {content}")
+            
+            return {
+                "success": False, 
+                "error": "Failed to parse chord table response",
+                "message": f"Could not generate a valid chord table for '{song_title}'. Please try again or check if the song title is correct."
+            }
+            
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return {"success": False, "error": str(e)}
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
 

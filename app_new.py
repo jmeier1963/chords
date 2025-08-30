@@ -897,8 +897,12 @@ def generate_chord_table():
         result = {
             "success": True,
             "song_title": song_title,
-            "chord_sheet": result_data.get("chord_sheet", ""),
-            "message": f"Successfully generated chord sheet for '{song_title}'!"
+            "key": result_data.get("key", "C"),
+            "time_signature": result_data.get("time_signature", "4/4"),
+            "total_bars": result_data.get("total_bars", 4),
+            "chord_table": result_data.get("chord_table", []),
+            "explanations": result_data.get("explanations", []),
+            "message": f"Successfully generated chord table for '{song_title}'!"
         }
         
         return jsonify(result)
@@ -947,14 +951,14 @@ If the title is likely a copyrighted song, invent an original progression in the
         
         client = openai.OpenAI()
         
-        # Create the response using the standard Chat Completions API
-        response = client.responses.create(
+        # Create the response using the Responses API
+        resp = client.responses.create(
             model="gpt-5",
             instructions=SYSTEM_INSTRUCTIONS,
             input=user_prompt,
         )
 
-        output = response.output_text    # unified text accessor (handles tool/segment stitching)
+        output = resp.output_text  # unified text accessor (handles tool/segment stitching)
         
         # Add timestamp to the output
         from datetime import datetime
@@ -967,8 +971,6 @@ If the title is likely a copyrighted song, invent an original progression in the
     except Exception as e:
         print(f"OpenAI API error: {e}")
         return {"success": False, "error": str(e)}
-        
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
-
-
