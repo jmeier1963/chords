@@ -884,21 +884,18 @@
                 
                 // Header row with beat numbers
                 tableHtml += '<thead><tr style="background: #667eea; color: white;">';
-                tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Bar</th>';
                 tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 1</th>';
                 tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 2</th>';
                 tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 3</th>';
                 tableHtml += '<th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Beat 4</th>';
                 tableHtml += '</tr></thead><tbody>';
                 
-                // Generate rows for each bar
-                let currentBar = 1;
+                // Generate rows for each bar (4 beats per row)
                 let currentBeat = 1;
                 
                 result.chord_table.forEach((chord, index) => {
                     if (currentBeat === 1) {
                         tableHtml += '<tr>';
-                        tableHtml += `<td style="padding: 12px; text-align: center; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">${currentBar}</td>`;
                     }
                     
                     tableHtml += `<td style="padding: 12px; text-align: center; border: 1px solid #ddd; background: ${chord ? '#e8f5e8' : '#fff'}; color: ${chord ? '#2d5a2d' : '#999'}; font-weight: ${chord ? 'bold' : 'normal'};">${chord || '-'}</td>`;
@@ -907,7 +904,6 @@
                     if (currentBeat > 4) {
                         tableHtml += '</tr>';
                         currentBeat = 1;
-                        currentBar++;
                     }
                 });
                 

@@ -885,10 +885,11 @@ def generate_chord_table():
         chord_table_result = generate_chord_table_with_openai(song_title)
         
         if not chord_table_result["success"]:
+            error_msg = chord_table_result.get("message", chord_table_result.get("error", "Unknown error"))
             return jsonify({
                 "success": False,
                 "error": chord_table_result.get("error", "Unknown error"),
-                "message": f"Failed to generate chord table for '{song_title}'"
+                "message": f"Could not find chord schema for '{song_title}'. {error_msg} Please try a different song or check the spelling."
             })
         
         result_data = chord_table_result["data"]
@@ -921,12 +922,10 @@ def generate_chord_table_with_openai(song_title):
         {{
             "key": "C",
             "time_signature": "4/4",
-            "total_bars": 8,
+            "total_bars": 16,
             "chord_table": [
-                "C", "C", "C", "C",
-                "F", "F", "F", "F", 
-                "C", "C", "C", "C",
-                "G", "G", "G", "G"
+                "C", "C", "C", "C", "F", "F", "F", "F", "C", "C", "C", "C", "G", "G", "G", "G",
+                "C", "C", "C", "C", "F", "F", "F", "F", "C", "C", "C", "C", "G", "G", "G", "G"
             ],
             "explanations": [
                 {{
@@ -946,23 +945,27 @@ def generate_chord_table_with_openai(song_title):
         
         The chord_table should be an array where each element represents one beat in 4/4 time.
         - Each bar has 4 beats
+        - Generate the exact number of bars that the song actually has (don't pad or truncate)
         - Use standard chord notation (C, F, G, Am, Dm, etc.)
-        - If you don't know the exact song, provide a common chord progression that would fit a song with that title or style
-        - Focus on popular songs and common chord patterns
+        - Use your extensive knowledge of popular songs to find the actual chord progression for this specific song
+        - ONLY return chord progressions for songs you are confident exist and know well
+        - If you cannot find the exact song in your training data, return an error message instead of guessing
+        - Focus on accuracy - if you can't find the exact song, don't guess
         - The explanations should describe the musical function and emotional impact of each chord change
+        - Include verse, chorus, bridge sections if applicable
         
         Return only valid JSON, no additional text.
         """
         
         client = openai.OpenAI()
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. Generate accurate chord tables and provide insightful explanations of chord functions."},
+                {"role": "system", "content": "You are a music theory expert specializing in chord progressions and sheet music notation. You have extensive knowledge of popular songs and their chord structures. Generate accurate chord tables and provide insightful explanations of chord functions. Use your training data to find the most accurate chord progression for the requested song. IMPORTANT: Only return chord progressions for songs you are confident exist and know well. If you cannot find the exact song, return an error message instead of guessing."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=800,
-            temperature=0.3
+            max_tokens=1200,
+            temperature=0.2
         )
         
         # Extract the response content
@@ -984,25 +987,14 @@ def generate_chord_table_with_openai(song_title):
             print(f"JSON parsing failed: {e}")
             print(f"Raw response: {content}")
             
-            # Fallback: create a simple chord table based on common patterns
+            # If JSON parsing fails, return an error instead of a fallback
+            print(f"JSON parsing failed: {e}")
+            print(f"Raw response: {content}")
+            
             return {
-                "success": True,
-                "data": {
-                    "key": "C",
-                    "time_signature": "4/4",
-                    "total_bars": 4,
-                    "chord_table": [
-                        "C", "C", "C", "C",
-                        "F", "F", "F", "F",
-                        "C", "C", "C", "C", 
-                        "G", "G", "G", "G"
-                    ],
-                    "explanations": [
-                        {"chord": "C", "explanation": "Tonic chord - establishes the home key and provides stability"},
-                        {"chord": "F", "explanation": "Subdominant chord - creates tension and movement away from tonic"},
-                        {"chord": "G", "explanation": "Dominant chord - creates strong resolution back to tonic"}
-                    ]
-                }
+                "success": False, 
+                "error": "Failed to parse chord table response",
+                "message": f"Could not generate a valid chord table for '{song_title}'. Please try again or check if the song title is correct."
             }
             
     except Exception as e:
@@ -1011,3 +1003,5 @@ def generate_chord_table_with_openai(song_title):
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+
